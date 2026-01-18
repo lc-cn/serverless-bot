@@ -22,6 +22,12 @@ export class TelegramBot extends Bot {
     super(config.id, 'telegram', config.name, config.config);
     this.accessToken = (config.config.accessToken as string) || '';
     this.apiBase = `https://api.telegram.org/bot${this.accessToken}`;
+    console.log('[TelegramBot] Constructor', {
+      botId: config.id,
+      hasAccessToken: !!this.accessToken,
+      accessTokenLength: this.accessToken.length,
+      configKeys: Object.keys(config.config || {}),
+    });
   }
 
   /**
