@@ -24,7 +24,7 @@ const protectedRoutes: { path: string; permissions: string[] }[] = [
   { path: '/api/roles', permissions: ['roles:read'] },
 ];
 
-export async function middleware(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 检查是否是公开路由
