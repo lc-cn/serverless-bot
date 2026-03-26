@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,10 +10,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Overlay } from '@/components/ui/overlay';
-import { Select } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ArrowLeft, Plus, Trash2, Edit, ChevronDown, ChevronUp, Briefcase, Zap, X } from 'lucide-react';
-import Link from 'next/link';
-import { Flow, Job, Trigger } from '@/types';
+import { Link } from '@/i18n/navigation';
+import { Flow, Job, LlmAgent, Trigger } from '@/types';
 
 interface FlowListClientProps {
   eventType: 'message' | 'request' | 'notice';
@@ -22,9 +29,11 @@ interface FlowListClientProps {
 }
 
 export function FlowListClient({ eventType, title, description, initialFlows }: FlowListClientProps) {
+  const ui = useTranslations('Ui');
   const router = useRouter();
   const [flows, setFlows] = useState<Flow[]>(initialFlows);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [agents, setAgents] = useState<LlmAgent[]>([]);
   const [triggers, setTriggers] = useState<Trigger[]>([]);
   const [expandedFlow, setExpandedFlow] = useState<string | null>(null);
   const [showCreateOverlay, setShowCreateOverlay] = useState(false);
@@ -32,6 +41,7 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
   const [showDeleteOverlay, setShowDeleteOverlay] = useState(false);
   const [selectedFlow, setSelectedFlow] = useState<Flow | null>(null);
 
+  const [addJobPicker, setAddJobPicker] = useState('');
   const [formData, setFormData] = useState<Partial<Flow>>(
     {
       name: '',
@@ -40,12 +50,16 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
       eventType: eventType as Flow['eventType'],
       priority: 100,
       triggerIds: [],
+      targetKind: 'job',
+      llmAgentId: null,
       jobIds: [],
+      haltLowerPriorityAfterMatch: false,
     }
   );
 
   useEffect(() => {
     loadJobs();
+    loadAgents();
     loadTriggers();
   }, []);
 
@@ -69,6 +83,21 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
     }
   };
 
+  const loadAgents = async () => {
+    try {
+      const res = await fetch('/api/agents');
+      const data = await res.json();
+      if (res.ok) {
+        setAgents(data.agents || []);
+      } else {
+        setAgents([]);
+      }
+    } catch (error) {
+      console.error('Failed to load agents:', error);
+      setAgents([]);
+    }
+  };
+
   const refreshFlows = async () => {
     try {
       const res = await fetch(`/api/flows?type=${eventType}`);
@@ -80,6 +109,16 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
   };
 
   const handleCreate = async () => {
+    const kind = formData.targetKind ?? 'job';
+    if (kind === 'job' && !(formData.jobIds?.length ?? 0)) {
+      alert(ui('bindPipelineRequired'));
+      return;
+    }
+    if (kind === 'agent' && !String(formData.llmAgentId ?? '').trim()) {
+      alert(ui('bindAgentRequired'));
+      return;
+    }
+
     try {
       const res = await fetch('/api/flows', {
         method: 'POST',
@@ -92,6 +131,13 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
         resetForm();
         refreshFlows();
         router.refresh();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        const msg =
+          (err.details && err.details[0] && (err.details[0].message as string)) ||
+          err.error ||
+          ui('createFailed');
+        alert(msg);
       }
     } catch (error) {
       console.error('Failed to create flow:', error);
@@ -100,6 +146,16 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
 
   const handleUpdate = async () => {
     if (!selectedFlow) return;
+
+    const kind = formData.targetKind ?? 'job';
+    if (kind === 'job' && !(formData.jobIds?.length ?? 0)) {
+      alert(ui('bindPipelineRequired'));
+      return;
+    }
+    if (kind === 'agent' && !String(formData.llmAgentId ?? '').trim()) {
+      alert(ui('bindAgentRequired'));
+      return;
+    }
 
     try {
       const res = await fetch(`/api/flows/${selectedFlow.id}`, {
@@ -114,6 +170,13 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
         resetForm();
         refreshFlows();
         router.refresh();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        const msg =
+          (err.details && err.details[0] && (err.details[0].message as string)) ||
+          err.error ||
+          ui('saveFailed');
+        alert(msg);
       }
     } catch (error) {
       console.error('Failed to update flow:', error);
@@ -157,6 +220,7 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
   };
 
   const resetForm = () => {
+    setAddJobPicker('');
     setFormData({
       name: '',
       description: '',
@@ -164,21 +228,29 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
       eventType: eventType as Flow['eventType'],
       priority: 100,
       triggerIds: [],
+      targetKind: 'job',
+      llmAgentId: null,
       jobIds: [],
+      haltLowerPriorityAfterMatch: false,
     });
   };
 
   const openEditOverlay = (flow: Flow) => {
     setSelectedFlow(flow);
+    const kind = flow.targetKind === 'agent' ? 'agent' : 'job';
     setFormData({
       name: flow.name,
       description: flow.description,
       enabled: flow.enabled,
       priority: flow.priority,
       triggerIds: flow.triggerIds || [],
+      targetKind: kind,
+      llmAgentId: flow.llmAgentId ?? null,
       jobIds: flow.jobIds || [],
+      haltLowerPriorityAfterMatch: flow.haltLowerPriorityAfterMatch === true,
     });
     setShowEditOverlay(true);
+    setAddJobPicker('');
   };
 
   const addTrigger = (triggerId: string) => {
@@ -226,6 +298,8 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
   };
 
   const getJobById = (jobId: string) => jobs.find(j => j.id === jobId);
+  const getAgentById = (agentId: string | null | undefined) =>
+    agentId ? agents.find((a) => a.id === agentId) : undefined;
   const getTriggerById = (triggerId: string) => triggers.find(t => t.id === triggerId);
 
   return (
@@ -234,7 +308,7 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
         <Link href="/flow">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            返回
+            {ui('back')}
           </Button>
         </Link>
         <div className="flex items-center justify-between mt-4">
@@ -244,7 +318,7 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
           </div>
           <Button onClick={() => setShowCreateOverlay(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            新建流程
+            {ui('newFlow')}
           </Button>
         </div>
       </div>
@@ -252,10 +326,10 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
       {flows.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <p className="text-muted-foreground mb-4">暂无流程</p>
+            <p className="text-muted-foreground mb-4">{ui('emptyFlows')}</p>
             <Button variant="outline" onClick={() => setShowCreateOverlay(true)}>
               <Plus className="w-4 h-4 mr-2" />
-              创建第一个流程
+              {ui('createFirstFlow')}
             </Button>
           </CardContent>
         </Card>
@@ -271,9 +345,9 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
                       <CardTitle className="flex items-center gap-2">
                         {flow.name}
                         {!flow.enabled && (
-                          <Badge variant="secondary">已禁用</Badge>
+                          <Badge variant="secondary">{ui('disabledBadge')}</Badge>
                         )}
-                        <Badge variant="outline">优先级: {flow.priority}</Badge>
+                        <Badge variant="outline">{ui('priorityLabel', { priority: flow.priority })}</Badge>
                       </CardTitle>
                       {flow.description && (
                         <CardDescription className="mt-2">
@@ -292,7 +366,7 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
                         onClick={() => openEditOverlay(flow)}
                       >
                         <Edit className="w-4 h-4 mr-2" />
-                        编辑
+                        {ui('edit')}
                       </Button>
                       <Button
                         variant="outline"
@@ -303,7 +377,7 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
                         }}
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
-                        删除
+                        {ui('delete')}
                       </Button>
                     </div>
                   </div>
@@ -312,11 +386,21 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
                   <div className="space-y-4">
                     <div className="flex flex-wrap gap-2 text-sm">
                       <Badge variant="outline">
-                        触发器: {flow.triggerIds?.length || 0}
+                        {ui('triggerCountBadge', { count: flow.triggerIds?.length || 0 })}
                       </Badge>
-                      <Badge variant="outline">
-                        作业数: {flow.jobIds?.length || 0}
-                      </Badge>
+                      {(flow.targetKind ?? 'job') === 'agent' ? (
+                        <Badge variant="outline">
+                          {ui('flowAgentBadgePrefix')}
+                          {getAgentById(flow.llmAgentId)?.name || flow.llmAgentId || ui('agentUnset')}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline">
+                          {ui('jobCountBadge', { count: flow.jobIds?.length || 0 })}
+                        </Badge>
+                      )}
+                      {flow.haltLowerPriorityAfterMatch && (
+                        <Badge variant="secondary">{ui('haltAfterMatchBadge')}</Badge>
+                      )}
                     </div>
 
                     <Button
@@ -331,16 +415,16 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
                       ) : (
                         <ChevronDown className="w-4 h-4 mr-2" />
                       )}
-                      {expandedFlow === flow.id ? '收起' : '查看详情'}
+                      {expandedFlow === flow.id ? ui('collapse') : ui('viewDetails')}
                     </Button>
 
                     {expandedFlow === flow.id && (
                       <div className="mt-4 space-y-4 border-t pt-4">
                         {/* 触发器列表 */}
                         <div>
-                          <h4 className="text-sm font-medium mb-2">触发器</h4>
+                          <h4 className="text-sm font-medium mb-2">{ui('triggersSectionTitle')}</h4>
                           {(!flow.triggerIds || flow.triggerIds.length === 0) ? (
-                            <p className="text-sm text-muted-foreground">暂无触发器</p>
+                            <p className="text-sm text-muted-foreground">{ui('emptyTriggersInline')}</p>
                           ) : (
                             <div className="space-y-2">
                               {flow.triggerIds.map((triggerId, index) => {
@@ -354,12 +438,12 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
                                     <span className="flex-1">
                                       {trigger?.name || triggerId}
                                       {trigger && !trigger.enabled && (
-                                        <Badge variant="secondary" className="ml-2">已禁用</Badge>
+                                        <Badge variant="secondary" className="ml-2">{ui('disabledBadge')}</Badge>
                                       )}
                                     </span>
                                     {trigger && (
                                       <Badge variant="outline" className="text-xs">
-                                        {trigger.match.type === 'always' ? '总是匹配' : trigger.match.type}
+                                        {trigger.match.type === 'always' ? ui('alwaysMatch') : trigger.match.type}
                                       </Badge>
                                     )}
                                   </div>
@@ -369,11 +453,24 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
                           )}
                         </div>
 
-                        {/* 作业列表 */}
+                        {/* 步骤流水线或 Agent */}
                         <div>
-                          <h4 className="text-sm font-medium mb-2">执行作业</h4>
-                          {(!flow.jobIds || flow.jobIds.length === 0) ? (
-                            <p className="text-sm text-muted-foreground">暂无关联作业</p>
+                          <h4 className="text-sm font-medium mb-2">
+                            {(flow.targetKind ?? 'job') === 'agent' ? ui('flowTargetAgent') : ui('flowTargetJob')}
+                          </h4>
+                          {(flow.targetKind ?? 'job') === 'agent' ? (
+                            flow.llmAgentId ? (
+                              <div className="flex items-center gap-2 p-2 rounded border bg-muted/50">
+                                <Briefcase className="w-4 h-4 text-muted-foreground" />
+                                <span className="flex-1">
+                                  {getAgentById(flow.llmAgentId)?.name || flow.llmAgentId}
+                                </span>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">{ui('noAgentChosen')}</p>
+                            )
+                          ) : (!flow.jobIds || flow.jobIds.length === 0) ? (
+                            <p className="text-sm text-muted-foreground">{ui('emptyPipelinesInline')}</p>
                           ) : (
                             <div className="space-y-2">
                               {flow.jobIds.map((jobId, index) => {
@@ -387,12 +484,12 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
                                     <span className="flex-1">
                                       {index + 1}. {job?.name || jobId}
                                       {job && !job.enabled && (
-                                        <Badge variant="secondary" className="ml-2">已禁用</Badge>
+                                        <Badge variant="secondary" className="ml-2">{ui('disabledBadge')}</Badge>
                                       )}
                                     </span>
                                     {job && (
                                       <span className="text-xs text-muted-foreground">
-                                        {job.steps.length} 个步骤
+                                        {ui('stepCountShort', { count: job.steps.length })}
                                       </span>
                                     )}
                                   </div>
@@ -419,7 +516,7 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
           setSelectedFlow(null);
           resetForm();
         }}
-        title={showCreateOverlay ? '新建流程' : '编辑流程'}
+        title={showCreateOverlay ? ui('overlayNewFlow') : ui('overlayEditFlow')}
       >
         <form
           onSubmit={(e) => {
@@ -429,30 +526,36 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
           className="space-y-6"
         >
           <div className="space-y-2">
-            <label htmlFor="name" className="text-sm font-medium">流程名称 *</label>
+            <label htmlFor="name" className="text-sm font-medium">
+              {ui('flowFormNameLabel')}
+            </label>
             <Input
               id="name"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="例如：回复帮助信息"
+              placeholder={ui('flowFormNamePlaceholder')}
               required
             />
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="description" className="text-sm font-medium">描述</label>
+            <label htmlFor="description" className="text-sm font-medium">
+              {ui('flowFormDescLabel')}
+            </label>
             <Textarea
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="描述这个流程的功能..."
+              placeholder={ui('flowFormDescPlaceholder')}
               rows={2}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label htmlFor="priority" className="text-sm font-medium">优先级</label>
+              <label htmlFor="priority" className="text-sm font-medium">
+                {ui('flowFormPriorityLabel')}
+              </label>
               <Input
                 id="priority"
                 type="number"
@@ -462,7 +565,7 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">启用</label>
+              <label className="text-sm font-medium">{ui('flowFormEnabledLabel')}</label>
               <div className="flex items-center pt-2">
                 <Switch
                   checked={formData.enabled ?? true}
@@ -472,9 +575,24 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
             </div>
           </div>
 
+          <div className="rounded-lg border p-3 space-y-2">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-medium">{ui('haltLowerPriorityTitle')}</div>
+                <p className="text-xs text-muted-foreground mt-1">{ui('haltLowerPriorityDescription')}</p>
+              </div>
+              <Switch
+                checked={formData.haltLowerPriorityAfterMatch === true}
+                onChange={(checked: boolean) =>
+                  setFormData({ ...formData, haltLowerPriorityAfterMatch: checked })
+                }
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">触发器</label>
+              <label className="text-sm font-medium">{ui('flowFormTriggersLabel')}</label>
               <Button
                 type="button"
                 size="sm"
@@ -484,7 +602,7 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
                 }}
               >
                 <Plus className="w-4 h-4 mr-1" />
-                新建触发器
+                {ui('newTriggerShortcut')}
               </Button>
             </div>
             
@@ -498,12 +616,12 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
                 }
               }}
             >
-              <option value="">-- 选择触发器 --</option>
+              <option value="">{ui('selectTriggerPlaceholder')}</option>
               {triggers
                 .filter(t => !(formData.triggerIds ?? []).includes(t.id))
                 .map(trigger => (
                   <option key={trigger.id} value={trigger.id}>
-                    {trigger.name} ({trigger.enabled ? '启用' : '禁用'})
+                    {`${trigger.name} (${trigger.enabled ? ui('badgeEnabledShort') : ui('badgeDisabledShort')})`}
                   </option>
                 ))
               }
@@ -522,12 +640,12 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
                       <span className="flex-1">
                         {trigger?.name || triggerId}
                         {trigger && !trigger.enabled && (
-                          <Badge variant="secondary" className="ml-2 text-xs">已禁用</Badge>
+                          <Badge variant="secondary" className="ml-2 text-xs">{ui('disabledBadge')}</Badge>
                         )}
                       </span>
                       {trigger && (
                         <Badge variant="outline" className="text-xs">
-                          {trigger.match.type === 'always' ? '总是匹配' : trigger.match.type}
+                          {trigger.match.type === 'always' ? ui('alwaysMatch') : trigger.match.type}
                         </Badge>
                       )}
                       <Button
@@ -546,66 +664,135 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">关联作业</label>
-            <div className="space-y-2">
-              {formData.jobIds?.map((jobId, index) => {
-                const job = getJobById(jobId);
-                return (
-                  <div key={index} className="flex items-center gap-2 p-2 rounded border">
-                    <Briefcase className="w-4 h-4" />
-                    <span className="flex-1">
-                      {index + 1}. {job?.name || jobId}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => moveJobUp(index)}
-                      disabled={index === 0}
-                    >
-                      <ChevronUp className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => moveJobDown(index)}
-                      disabled={index === (formData.jobIds?.length || 0) - 1}
-                    >
-                      <ChevronDown className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeJob(index)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                );
-              })}
-
-              <Select
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) {
-                    addJob(e.target.value);
-                    e.target.value = '';
+            <span className="text-sm font-medium">{ui('executionTargetLabel')}</span>
+            <div className="flex flex-wrap gap-6 pt-1">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="flowTargetKind"
+                  className="rounded-full"
+                  checked={(formData.targetKind ?? 'job') === 'job'}
+                  onChange={() =>
+                    setFormData((f) => ({
+                      ...f,
+                      targetKind: 'job',
+                      llmAgentId: null,
+                    }))
                   }
-                }}
-              >
-                <option value="">添加作业...</option>
-                {jobs
-                  .filter((job) => !formData.jobIds?.includes(job.id))
-                  .map((job) => (
-                    <option key={job.id} value={job.id}>
-                      {job.name} ({job.steps.length} 个步骤)
-                    </option>
-                  ))}
-              </Select>
+                />
+                {ui('bindJobTarget')}
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="flowTargetKind"
+                  className="rounded-full"
+                  checked={formData.targetKind === 'agent'}
+                  onChange={() =>
+                    setFormData((f) => ({
+                      ...f,
+                      targetKind: 'agent',
+                      jobIds: [],
+                    }))
+                  }
+                />
+                {ui('bindAgentTarget')}
+              </label>
             </div>
+            <p className="text-xs text-muted-foreground">{ui('executionTargetHint')}</p>
           </div>
+
+          {(formData.targetKind ?? 'job') === 'agent' ? (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{ui('llmAgentSelectLabel')}</label>
+              <select
+                className="w-full p-2 border rounded-md bg-background"
+                value={formData.llmAgentId ?? ''}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    llmAgentId: e.target.value ? e.target.value : null,
+                  })
+                }
+              >
+                <option value="">{ui('selectAgentPlaceholder')}</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+              {agents.length === 0 && (
+                <p className="text-xs text-muted-foreground">{ui('noAgentsForFlowHint')}</p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{ui('linkedJobsLabel')}</label>
+              <div className="space-y-2">
+                {formData.jobIds?.map((jobId, index) => {
+                  const job = getJobById(jobId);
+                  return (
+                    <div key={index} className="flex items-center gap-2 p-2 rounded border">
+                      <Briefcase className="w-4 h-4" />
+                      <span className="flex-1">
+                        {index + 1}. {job?.name || jobId}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => moveJobUp(index)}
+                        disabled={index === 0}
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => moveJobDown(index)}
+                        disabled={index === (formData.jobIds?.length || 0) - 1}
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeJob(index)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+
+                <Select
+                  value={addJobPicker}
+                  onValueChange={(jobId) => {
+                    if (jobId) addJob(jobId);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={ui('addJobSelectPlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobs
+                      .filter((job) => !formData.jobIds?.includes(job.id))
+                      .map((job) => (
+                        <SelectItem key={job.id} value={job.id}>
+                          {ui('jobOptionNameSteps', {
+                            name: job.name,
+                            steps: ui('stepCountShort', { count: job.steps.length }),
+                          })}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-4 justify-end">
             <Button
@@ -618,10 +805,10 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
                 resetForm();
               }}
             >
-              取消
+              {ui('cancel')}
             </Button>
             <Button type="submit">
-              {showCreateOverlay ? '创建' : '保存'}
+              {showCreateOverlay ? ui('create') : ui('save')}
             </Button>
           </div>
         </form>
@@ -634,9 +821,11 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
           setShowDeleteOverlay(false);
           setSelectedFlow(null);
         }}
-        title="确认删除"
+        title={ui('confirmDeleteTitle')}
       >
-        <p className="mb-6">确定要删除流程 "{selectedFlow?.name}" 吗？此操作无法撤销。</p>
+        <p className="mb-6">
+          {ui('confirmDeleteFlowNamed', { name: selectedFlow?.name ?? '' })}
+        </p>
         <div className="flex gap-4 justify-end">
           <Button
             variant="outline"
@@ -645,10 +834,10 @@ export function FlowListClient({ eventType, title, description, initialFlows }: 
               setSelectedFlow(null);
             }}
           >
-            取消
+            {ui('cancel')}
           </Button>
           <Button variant="destructive" onClick={handleDelete}>
-            删除
+            {ui('delete')}
           </Button>
         </div>
       </Overlay>

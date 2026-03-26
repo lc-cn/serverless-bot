@@ -1,18 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adapterRegistry, flowProcessor } from '@/core';
-import { storage } from '@/lib/unified-storage';
-import { getChatStore, type ChatMessage, type PeerType } from '@/lib/chat-store';
+import { adapterRegistry } from '@/core';
+import { storage } from '@/lib/persistence';
+import { getChatStore, type ChatMessage, type PeerType } from '@/lib/persistence';
 import { type MessageEvent } from '@/types';
+import { apiRequireBotAccess } from '@/lib/auth/permissions';
+import { getOrCreateTraceId } from '@/lib/runtime/request-trace';
+import { runWebhookFlowPipeline } from '@/lib/webhook/process-webhook-flows';
+
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
+    const traceId = getOrCreateTraceId(req.headers);
     const body = await req.json();
     const { platform, bot_id: botId, text, peer_id: peerId, peer_type: peerType } = body;
-    console.info('[ChatSend] Incoming', { platform, botId, peerId, peerType, textLen: String(text || '').length });
+    console.info(`[trace:${traceId}] [ChatSend] Incoming`, { platform, botId, peerId, peerType, textLen: String(text || '').length });
 
     if (!platform || !botId || !text) {
       return NextResponse.json({ error: 'platform, bot_id and text required' }, { status: 400 });
     }
+
+    const gate = await apiRequireBotAccess(String(botId), 'write');
+    if (gate.error) return gate.error;
 
     const store = getChatStore();
     const maxCount = peerType === 'group' ? 1000 : 500;
@@ -26,7 +35,7 @@ export async function POST(req: NextRequest) {
     };
 
     await store.appendMessage({ platform, botId, peerId, peerType: (peerType as PeerType | null) ?? null, message, cap: maxCount });
-    console.debug('[ChatSend] User message persisted');
+    console.debug(`[trace:${traceId}] [ChatSend] User message persisted`);
 
     // 直接发送到目标会话（快速直发通道），不中断后续 Flow 触发
     if (peerId && peerType) {
@@ -50,13 +59,13 @@ export async function POST(req: NextRequest) {
               peerType: (peerType as PeerType | undefined) || undefined,
             };
             await store.appendMessage({ platform, botId, peerId, peerType: (peerType as PeerType | null) ?? null, message: botMessage, cap: maxCount });
-            console.debug('[ChatSend] Direct send persisted');
+            console.debug(`[trace:${traceId}] [ChatSend] Direct send persisted`);
           } else {
-            console.warn('[ChatSend] Direct send failed', sendResult.error);
+            console.warn(`[trace:${traceId}] [ChatSend] Direct send failed`, sendResult.error);
           }
         }
       } catch (directErr) {
-        console.warn('[ChatSend] Direct send exception', directErr);
+        console.warn(`[trace:${traceId}] [ChatSend] Direct send exception`, directErr);
       }
     }
 
@@ -79,12 +88,8 @@ export async function POST(req: NextRequest) {
           messageId: message.id,
           groupId: peerType === 'group' ? peerId : undefined,
         };
-        const flows = await storage.getFlows();
-        const jobs = await storage.getJobs();
-        flowProcessor.setFlows(flows);
-        flowProcessor.setJobs(jobs);
-        const flowResults = await flowProcessor.process(event, bot);
-        console.info('[ChatSend] Flow processed', { count: flowResults.length });
+        const flowResults = await runWebhookFlowPipeline({ platform, botId, event, bot, traceId });
+        console.info(`[trace:${traceId}] [ChatSend] Flow processed`, { count: flowResults.length });
 
         // Persist bot replies based on send_message action outputs
         try {
@@ -102,7 +107,7 @@ export async function POST(req: NextRequest) {
                     peerType: (peerType as PeerType | undefined) || undefined,
                   };
                   await store.appendMessage({ platform, botId, peerId, peerType: (peerType as PeerType | null) ?? null, message: botMessage, cap: maxCount });
-                  console.debug('[ChatSend] Bot reply persisted');
+                  console.debug(`[trace:${traceId}] [ChatSend] Bot reply persisted`);
                 }
               }
             }
@@ -112,7 +117,7 @@ export async function POST(req: NextRequest) {
         }
       }
     } catch (e) {
-      console.warn('Flow processing failed in chat/send:', e);
+      console.warn(`[trace:${traceId}] Flow processing failed in chat/send:`, e);
     }
 
     return NextResponse.json({ success: true, message });

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adapterRegistry, flowProcessor } from '@/core';
-import { getBot, getFlows, getJobs } from '@/lib/data';
+import { getBot } from '@/lib/persistence';
+import { storage } from '@/lib/persistence';
 import { type NoticeEvent } from '@/types';
-import { getChatStore, type ContactRecord } from '@/lib/chat-store';
+import { getChatStore, type ContactRecord } from '@/lib/persistence';
+import { apiRequireBotAccess } from '@/lib/auth/permissions';
+import { getOrCreateTraceId } from '@/lib/runtime/request-trace';
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,6 +17,9 @@ export async function GET(req: NextRequest) {
     if (!platform || !botId) {
       return NextResponse.json({ error: 'platform and bot_id required' }, { status: 400 });
     }
+
+    const gate = await apiRequireBotAccess(botId, 'read');
+    if (gate.error) return gate.error;
 
     const store = getChatStore();
 
@@ -49,12 +55,16 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const traceId = getOrCreateTraceId(req.headers);
     const body = await req.json();
     const { platform, bot_id: botId, contact, group_id: groupId } = body as { platform?: string; bot_id?: string; contact?: ContactRecord; group_id?: string };
 
     if (!platform || !botId || !contact || !contact.id || !contact.name) {
       return NextResponse.json({ error: 'platform, bot_id and contact{id,name} required' }, { status: 400 });
     }
+
+    const gate = await apiRequireBotAccess(String(botId), 'write');
+    if (gate.error) return gate.error;
 
     const store = getChatStore();
     await store.upsertContact({ platform, botId, contact, groupId: groupId || undefined });
@@ -75,14 +85,12 @@ export async function POST(req: NextRequest) {
           sender: { userId: 'web', role: 'normal' },
           extra: { contact },
         };
-        const flows = await getFlows();
-        const jobs = await getJobs();
-        flowProcessor.setFlows(flows);
-        flowProcessor.setJobs(jobs);
-        await flowProcessor.process(event as any, bot);
+        const owner = botConfig.ownerId ?? null;
+        const { flows, jobs, triggers } = await storage.getWebhookFlowRuntimeSnapshot(owner);
+        await flowProcessor.process(event as any, bot, { flows, jobs, triggers }, { traceId });
       }
     } catch (e) {
-      console.warn('Flow processing failed in contacts POST:', e);
+      console.warn(`[trace:${traceId}] Flow processing failed in contacts POST:`, e);
     }
 
     return NextResponse.json({ success: true, contact });
@@ -100,6 +108,9 @@ export async function DELETE(req: NextRequest) {
     if (!platform || !botId || !id) {
       return NextResponse.json({ error: 'platform, bot_id and id required' }, { status: 400 });
     }
+
+    const gate = await apiRequireBotAccess(String(botId), 'write');
+    if (gate.error) return gate.error;
 
     const store = getChatStore();
     await store.deleteContact({ platform, botId, id });

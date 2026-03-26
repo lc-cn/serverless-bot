@@ -1,9 +1,12 @@
 import { z } from 'zod';
 import { Adapter, FormUISchema, AdapterFeature, WebhookResponse } from '@/core/adapter';
+import type { AdapterSetupGuideDefinition } from '@/core/adapter-setup-guide';
 import { DiscordBot } from './bot';
 import { BotConfig, BotEvent, MessageEvent, UserRole } from '@/types';
-import { generateId } from '@/lib/utils';
-import { DiscordEd25519 } from '@/lib/ed25519';
+import { generateId } from '@/lib/shared/utils';
+import { DiscordEd25519 } from '@/lib/crypto/ed25519';
+
+const DISCORD_SETUP_WEBHOOK_EXAMPLE = 'https://yourserver.com/api/webhooks/discord';
 
 export class DiscordAdapter extends Adapter {
   constructor() {
@@ -23,6 +26,43 @@ export class DiscordAdapter extends Adapter {
 
   getAdapterConfigUISchema(): FormUISchema {
     return { fields: [] };
+  }
+
+  getSetupGuide(): AdapterSetupGuideDefinition | null {
+    return {
+      namespace: 'discord',
+      sectionTitleKey: 'getCredentialsTitle',
+      steps: [
+        { titleKey: 'step1Title', border: 'indigo', body: { kind: 'rich', messageKey: 'step1Body' } },
+        { titleKey: 'step2Title', border: 'indigo', body: { kind: 'plain', messageKey: 'step2Body' } },
+        { titleKey: 'step3Title', border: 'indigo', body: { kind: 'plain', messageKey: 'step3Body' } },
+        { titleKey: 'step4Title', border: 'indigo', body: { kind: 'plain', messageKey: 'step4Body' } },
+        {
+          titleKey: 'step5Title',
+          border: 'indigo',
+          body: {
+            kind: 'beforeCodeAfter',
+            beforeKey: 'step5Before',
+            codeSample: DISCORD_SETUP_WEBHOOK_EXAMPLE,
+            afterKey: 'step5After',
+          },
+        },
+        { titleKey: 'step6Title', border: 'green', body: { kind: 'rich', messageKey: 'step6Body' } },
+      ],
+      tipKey: 'tip',
+      usage: {
+        lines: [
+          { kind: 'lead', key: 'usage1' },
+          { kind: 'lead', key: 'usage2' },
+          { kind: 'lead', key: 'usage3' },
+          { kind: 'lead', key: 'usage4' },
+          { kind: 'field', key: 'usage4BotToken' },
+          { kind: 'field', key: 'usage4PublicKey' },
+          { kind: 'lead', key: 'usage5' },
+          { kind: 'lead', key: 'usage6' },
+        ],
+      },
+    };
   }
 
   getBotConfigUISchema(): FormUISchema {
@@ -111,7 +151,12 @@ export class DiscordAdapter extends Adapter {
     };
   }
 
-  async verifyWebhook(rawData: unknown, headers: Record<string, string>, config: Record<string, unknown>): Promise<boolean> {
+  async verifyWebhook(
+    rawData: unknown,
+    headers: Record<string, string>,
+    config: Record<string, unknown>,
+    _query?: Record<string, string>
+  ): Promise<boolean> {
     try {
       console.log('[Discord] verifyWebhook called with config:', JSON.stringify(config, null, 2));
       console.log('[Discord] config keys:', Object.keys(config));

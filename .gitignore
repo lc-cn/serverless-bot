@@ -11,6 +11,9 @@ out
 .env*.local
 .env
 
+# node:sqlite 本地库（如 SQLITE_PATH=./data/xxx.sqlite）
+/data/
+
 # Vercel
 .vercel
 

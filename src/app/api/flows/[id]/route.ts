@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { storage } from '@/lib/unified-storage';
+import { storage } from '@/lib/persistence';
 import { FlowSchema } from '@/types';
+import { apiRequireAuth } from '@/lib/auth/permissions';
+import { writeAuditLog } from '@/lib/audit';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -11,8 +13,11 @@ interface RouteParams {
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    const { error, session } = await apiRequireAuth();
+    if (error) return error;
+
     const { id } = await params;
-    const flow = await storage.getFlow(id);
+    const flow = await storage.getFlowForUser(id, session!.user.id);
 
     if (!flow) {
       return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
@@ -33,12 +38,36 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  */
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
+    const { error, session } = await apiRequireAuth();
+    if (error) return error;
+
     const { id } = await params;
     const body = await request.json();
 
-    const existing = await storage.getFlow(id);
+    const existing = await storage.getFlowForUser(id, session!.user.id);
     if (!existing) {
       return NextResponse.json({ error: 'Flow not found' }, { status: 404 });
+    }
+
+    const targetKind =
+      body.targetKind === 'agent' || body.targetKind === 'job'
+        ? body.targetKind
+        : (existing.targetKind ?? 'job');
+
+    let llmAgentId: string | null =
+      body.llmAgentId !== undefined
+        ? typeof body.llmAgentId === 'string' && body.llmAgentId.trim()
+          ? body.llmAgentId.trim()
+          : null
+        : (existing.llmAgentId ?? null);
+
+    let jobIds =
+      body.jobIds !== undefined ? body.jobIds : (existing.jobIds ?? []);
+
+    if (targetKind === 'agent') {
+      jobIds = [];
+    } else {
+      llmAgentId = null;
     }
 
     const flowData = {
@@ -49,7 +78,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       eventType: body.eventType ?? existing.eventType,
       priority: body.priority ?? existing.priority,
       triggerIds: body.triggerIds ?? existing.triggerIds ?? [],
-      jobIds: body.jobIds ?? existing.jobIds ?? [],
+      targetKind,
+      llmAgentId,
+      jobIds,
+      haltLowerPriorityAfterMatch:
+        body.haltLowerPriorityAfterMatch !== undefined
+          ? body.haltLowerPriorityAfterMatch === true
+          : existing.haltLowerPriorityAfterMatch,
+      ownerId: existing.ownerId ?? session!.user.id,
       updatedAt: Date.now(),
     };
 
@@ -62,9 +98,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    await storage.saveFlow(flowData);
+    const flow = parseResult.data;
+    await storage.saveFlow(flow);
 
-    return NextResponse.json({ success: true, flow: flowData });
+    void writeAuditLog({
+      actorUserId: session!.user.id,
+      action: 'flow.update',
+      entityType: 'flow',
+      entityId: id,
+      payload: { name: flow.name, eventType: flow.eventType, enabled: flow.enabled },
+      request,
+    });
+
+    return NextResponse.json({ success: true, flow });
   } catch (error) {
     console.error('Failed to update flow:', error);
     return NextResponse.json(
@@ -79,9 +125,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
+    const { error, session } = await apiRequireAuth();
+    if (error) return error;
+
     const { id } = await params;
 
-    await storage.deleteFlow(id);
+    await storage.deleteFlowForUser(id, session!.user.id);
+
+    void writeAuditLog({
+      actorUserId: session!.user.id,
+      action: 'flow.delete',
+      entityType: 'flow',
+      entityId: id,
+      request,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

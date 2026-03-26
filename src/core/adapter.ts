@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Bot } from './bot';
 import { BotEvent, BotConfig } from '@/types';
+import type { AdapterSetupGuideDefinition } from './adapter-setup-guide';
 
 /**
  * Adapter 抽象基类
@@ -62,6 +63,13 @@ export abstract class Adapter {
    */
   getBotConfigUISchema(): FormUISchema {
     return { fields: [] };
+  }
+
+  /**
+   * 若返回非空，对应平台适配器详情页展示接入引导，并按结构体渲染步骤（零平台 switch）。
+   */
+  getSetupGuide(): AdapterSetupGuideDefinition | null {
+    return null;
   }
 
   // ==================== Bot 管理 ====================
@@ -133,8 +141,18 @@ export abstract class Adapter {
   abstract verifyWebhook(
     rawData: unknown,
     headers: Record<string, string>,
-    config: Record<string, unknown>
+    config: Record<string, unknown>,
+    query?: Record<string, string>
   ): Promise<boolean>;
+
+  /**
+   * Webhook GET（如微信公众号服务器 URL 验证）。
+   * 返回 null 时由路由使用默认 JSON 占位响应。
+   */
+  handleWebhookGet?(
+    query: Record<string, string>,
+    botConfig: Record<string, unknown>
+  ): WebhookGetResult | null;
 
   /**
    * 获取 Webhook 响应
@@ -188,6 +206,11 @@ export interface WebhookResponse {
   body: unknown;
   headers?: Record<string, string>;
 }
+
+/** Webhook GET 处理结果 */
+export type WebhookGetResult =
+  | { type: 'plain'; body: string; status?: number; headers?: Record<string, string> }
+  | { type: 'json'; body: unknown; status?: number; headers?: Record<string, string> };
 
 export type AdapterFeature = 
   | 'message'      // 消息收发

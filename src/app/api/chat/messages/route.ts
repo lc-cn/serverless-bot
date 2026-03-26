@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getChatStore, type PeerType } from '@/lib/chat-store';
+import { getChatStore, type PeerType } from '@/lib/persistence';
+import { apiRequireBotAccess } from '@/lib/auth/permissions';
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,6 +13,9 @@ export async function GET(req: NextRequest) {
     if (!platform || !botId) {
       return NextResponse.json({ error: 'platform and bot_id required' }, { status: 400 });
     }
+
+    const gate = await apiRequireBotAccess(botId, 'read');
+    if (gate.error) return gate.error;
 
     const store = getChatStore();
     const messages = await store.listMessages({ platform, botId, peerId, peerType: peerType as PeerType | null });

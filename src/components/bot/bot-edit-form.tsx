@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,8 @@ interface BotEditFormProps {
 }
 
 export function BotEditForm({ platform, bot, botConfigSchema }: BotEditFormProps) {
+  const ui = useTranslations('Ui');
+  const tb = useTranslations('Dashboard.botEdit');
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<Record<string, unknown>>(bot.config || {});
@@ -57,7 +60,7 @@ export function BotEditForm({ platform, bot, botConfigSchema }: BotEditFormProps
     <div className="grid gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>Webhook URL</CardTitle>
+          <CardTitle>{tb('webhookTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2">
@@ -68,31 +71,27 @@ export function BotEditForm({ platform, bot, botConfigSchema }: BotEditFormProps
               <Copy className="w-4 h-4" />
             </Button>
           </div>
-          <p className="text-sm text-muted-foreground mt-2">
-            将此 URL 配置到对应平台的 Webhook 设置中
-          </p>
+          <p className="text-sm text-muted-foreground mt-2">{tb('webhookHint')}</p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>基本设置</CardTitle>
+          <CardTitle>{tb('basicTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">机器人名称</label>
+            <label className="block text-sm font-medium mb-1">{tb('botNameLabel')}</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="机器人名称"
+              placeholder={tb('botNamePlaceholder')}
             />
           </div>
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-medium">启用机器人</div>
-              <div className="text-sm text-muted-foreground">
-                禁用后将不再处理该机器人的事件
-              </div>
+              <div className="font-medium">{tb('enabledTitle')}</div>
+              <div className="text-sm text-muted-foreground">{tb('enabledHint')}</div>
             </div>
             <Switch checked={enabled} onChange={setEnabled} />
           </div>
@@ -101,7 +100,7 @@ export function BotEditForm({ platform, bot, botConfigSchema }: BotEditFormProps
 
       <Card>
         <CardHeader>
-          <CardTitle>机器人配置</CardTitle>
+          <CardTitle>{tb('configTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {botConfigSchema?.fields?.map((field: FormField) => (
@@ -124,7 +123,7 @@ export function BotEditForm({ platform, bot, botConfigSchema }: BotEditFormProps
         <CardFooter>
           <Button onClick={handleSave} disabled={saving}>
             <Save className="w-4 h-4 mr-2" />
-            {saving ? '保存中...' : '保存配置'}
+            {saving ? ui('saving') : ui('saveBotConfig')}
           </Button>
         </CardFooter>
       </Card>

@@ -1,12 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adapterRegistry, flowProcessor } from '@/core';
-import { storage } from '@/lib/unified-storage';
-import { appendEventLog } from '@/lib/kv-logs';
-import { getChatStore } from '@/lib/chat-store';
+import { adapterRegistry, type WebhookResponse } from '@/core';
+import { processWechatMpWebhook } from '@/adapters/wechat-mp/inbound';
+import { storage } from '@/lib/persistence';
+import { getOrCreateTraceId } from '@/lib/runtime/request-trace';
 import { QQAdapter } from '@/adapters/qq';
+import {
+  cacheWebhookChatDirectory,
+  runWebhookFlowPipeline,
+} from '@/lib/webhook/process-webhook-flows';
+import {
+  enqueueWebhookFlowJob,
+  tryMarkWebhookEventDedupe,
+} from '@/lib/webhook/webhook-flow-queue';
+import { isWebhookFlowAsync, isWebhookFlowDedupeOnSuccessOnly } from '@/lib/webhook/webhook-env';
+import { wechatMpPassiveReplyStorage } from '@/lib/runtime/wechat-mp-passive-context';
 
 // 确保适配器被注册
 import '@/adapters';
+
+export const maxDuration = 300;
+/** AsyncLocalStorage（微信被动密文回复）依赖 Node runtime */
+export const runtime = 'nodejs';
+
+function nextResponseFromWebhook(webhookResponse: WebhookResponse): NextResponse {
+  if (typeof webhookResponse.body === 'string') {
+    return new NextResponse(webhookResponse.body, {
+      status: webhookResponse.status,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        ...webhookResponse.headers,
+      },
+    });
+  }
+  return new NextResponse(JSON.stringify(webhookResponse.body), {
+    status: webhookResponse.status,
+    headers: {
+      'Content-Type': 'application/json',
+      ...webhookResponse.headers,
+    },
+  });
+}
 
 interface RouteParams {
   params: Promise<{
@@ -22,13 +55,14 @@ interface RouteParams {
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const resolvedParams = await params;
   const { platform, bot_id: botId } = resolvedParams;
+  const traceId = getOrCreateTraceId(request.headers);
 
   try {
-    console.info('[Webhook] Incoming request', { platform, botId });
+    console.info(`[trace:${traceId}] [Webhook] Incoming request`, { platform, botId });
     // 1. 获取 Adapter
     const adapter = adapterRegistry.get(platform);
     if (!adapter) {
-      console.error('[Webhook] Adapter not found', { platform });
+      console.error(`[trace:${traceId}] [Webhook] Adapter not found`, { platform });
       return NextResponse.json(
         { error: 'Platform not supported' },
         { status: 404 }
@@ -38,11 +72,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // 2. 获取 Bot 配置
     const botConfig = await storage.getBot(botId);
     if (!botConfig) {
-      console.error('[Webhook] Bot not found', { botId });
+      console.error(`[trace:${traceId}] [Webhook] Bot not found`, { botId });
       return NextResponse.json(
         { error: 'Bot not found' },
         { status: 404 }
       );
+    }
+
+    if (botConfig.platform !== platform) {
+      console.error(`[trace:${traceId}] [Webhook] Platform mismatch`, {
+        path: platform,
+        botPlatform: botConfig.platform,
+        botId,
+      });
+      return NextResponse.json({ error: 'Platform mismatch' }, { status: 400 });
     }
 
     if (!botConfig.enabled) {
@@ -57,45 +100,62 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const adapterConfig = await storage.getAdapter(platform);
     console.debug('[Webhook] Adapter/Bot config loaded', { hasAdapterConfig: !!adapterConfig, botName: botConfig.name });
 
+    const query: Record<string, string> = {};
+    request.nextUrl.searchParams.forEach((value, key) => {
+      query[key] = value;
+    });
+
     // 4. 解析请求数据
     // 关键：必须保存原始的 body 字符串用于签名验证！
     const bodyText = await request.text();
     let rawData: any;
-    try {
-      rawData = JSON.parse(bodyText);
-    } catch (e) {
-      console.error('[Webhook] Failed to parse body as JSON', e);
-      return NextResponse.json(
-        { error: 'Invalid JSON' },
-        { status: 400 }
-      );
+    if (platform === 'wechat_mp') {
+      const w = processWechatMpWebhook(bodyText, botConfig.config || {}, query);
+      if (!w.ok) {
+        console.error('[Webhook] WeChat MP verify/decrypt failed', { botId });
+        return NextResponse.json({ error: 'Verification failed' }, { status: 401 });
+      }
+      rawData = w.fields;
+    } else {
+      try {
+        rawData = bodyText ? JSON.parse(bodyText) : null;
+      } catch (e) {
+        console.error('[Webhook] Failed to parse body as JSON', e);
+        return NextResponse.json(
+          { error: 'Invalid JSON' },
+          { status: 400 }
+        );
+      }
     }
-    
+
     const headers: Record<string, string> = {};
     request.headers.forEach((value, key) => {
       headers[key] = value;
     });
     console.debug('[Webhook] Headers snapshot', Object.keys(headers));
 
-    // 5. 验证 Webhook
-    // 重要：传递原始的 body 字符串用于 Ed25519 签名验证
-    console.log('[Webhook] Bot config keys:', Object.keys(botConfig.config || {}));
-    console.log('[Webhook] Bot config:', JSON.stringify(botConfig.config, null, 2));
-    const isValid = await adapter.verifyWebhook(
-      bodyText,  // ← 传递原始 body 字符串，而不是解析后的对象
-      headers,
-      botConfig.config || {}
-    );
-
-    if (!isValid) {
-      console.error('[Webhook] Verification failed', { botId });
-      return NextResponse.json(
-        { error: 'Verification failed' },
-        { status: 401 }
+    // 5. 验证 Webhook（微信已在上方完成验签 + 解密）
+    console.debug('[Webhook] Bot config keys:', Object.keys(botConfig.config || {}));
+    if (platform !== 'wechat_mp') {
+      const isValid = await adapter.verifyWebhook(
+        bodyText,
+        headers,
+        botConfig.config || {},
+        query
       );
-    }
-    console.info('[Webhook] Verification passed');
 
+      if (!isValid) {
+        console.error('[Webhook] Verification failed', { botId });
+        return NextResponse.json(
+          { error: 'Verification failed' },
+          { status: 401 }
+        );
+      }
+    }
+    console.info(`[trace:${traceId}] [Webhook] Verification passed`);
+    const webhookAsync = await isWebhookFlowAsync();
+
+    const continueWebhook = async (): Promise<NextResponse> => {
     // 6.5 特殊处理 QQ 回调地址验证（op=13）
     if (platform === 'qq' && rawData?.op === 13) {
       const data = rawData.d;
@@ -123,14 +183,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         body: webhookResponse.body,
         headers: webhookResponse.headers,
       });
-      // 直接返回，让 Next.js 自动设置 Content-Type
-      return new NextResponse(JSON.stringify(webhookResponse.body), {
-        status: webhookResponse.status,
-        headers: {
-          'Content-Type': 'application/json',
-          ...webhookResponse.headers,
-        },
-      });
+      return nextResponseFromWebhook(webhookResponse);
     }
     console.info('[Webhook] Event parsed', { type: event.type, subType: event.subType, sender: event.sender?.userId, groupId: (event as any).groupId });
 
@@ -138,71 +191,79 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const bot = adapter.getOrCreateBot(botConfig);
     console.debug('[Webhook] Bot instance ready', { platform: bot.platform, botId: bot.id });
 
-    // 8. 加载 Flow、Job 和 Trigger 配置
-    const flows = await storage.getFlows();
-    const jobs = await storage.getJobs();
-    const triggers = await storage.getTriggers();
+    // 8. 加载 Flow、Job 和 Trigger 配置（Bot 有 ownerId 时仅加载全局 + 该用户数据）
+    const botOwnerId = botConfig.ownerId ?? null;
+    const { flows, jobs, triggers } = await storage.getWebhookFlowRuntimeSnapshot(botOwnerId);
     
     console.debug('[Webhook] Flows loaded', flows.map(f => ({ id: f.id, name: f.name, triggerIds: f.triggerIds, eventType: f.eventType })));
     console.debug('[Webhook] Jobs loaded', jobs.map(j => ({ id: j.id, name: j.name, stepCount: j.steps.length })));
     console.debug('[Webhook] Triggers loaded', triggers.map(t => ({ id: t.id, name: t.name, eventType: t.eventType, matchType: t.match.type, matchPattern: t.match.pattern })));
     
-    flowProcessor.setFlows(flows);
-    flowProcessor.setJobs(jobs);
-    flowProcessor.setTriggers(triggers);
-    console.debug('[Webhook] Flows, Jobs and Triggers loaded', { flows: flows.length, jobs: jobs.length, triggers: triggers.length });
+    console.debug(`[trace:${traceId}] [Webhook] Flows, Jobs and Triggers loaded`, {
+      flows: flows.length,
+      jobs: jobs.length,
+      triggers: triggers.length,
+    });
 
     // 9. 预处理：缓存联系人/群组，便于聊天面板读取
     try {
-      if (event.type === 'message') {
-        const store = getChatStore();
-        if (event.sender?.userId) {
-          await store.upsertContact({
-            platform,
-            botId,
-            contact: { id: event.sender.userId, name: event.sender.nickname || event.sender.userId, role: event.sender.role },
-            groupId: event.subType === 'group' ? String((event as any).groupId || '') : undefined,
-          });
-        }
-        if ((event as any).groupId) {
-          await store.upsertGroup({
-            platform,
-            botId,
-            group: { id: String((event as any).groupId), name: String((event as any).groupId) },
-          });
-        }
-      }
+      await cacheWebhookChatDirectory({ platform, botId, event });
     } catch (cacheErr) {
       console.warn('[Webhook] cache contacts/groups failed', cacheErr);
     }
 
-    // 10. 处理事件
-    const results = await flowProcessor.process(event, bot);
-    console.info('[Webhook] Event processed', {
-      eventId: event.id,
-      eventType: event.type,
-      flowResults: results.map(r => ({ flowId: r.flowId, matched: r.matched, executed: r.executed, duration: r.duration }))
-    });
-
-    try {
-      await appendEventLog(platform, botId, {
-        id: event.id,
-        type: event.type,
-        subType: (event as any).subType,
-        platform,
-        botId,
-        timestamp: Date.now(),
-        sender: { userId: (event as any)?.sender?.userId },
-        summary: {
-          flowResults: results.map(r => ({ flowId: r.flowId, matched: r.matched, executed: r.executed, duration: r.duration, error: r.error })),
-        },
+    // 10. 处理事件（同步）或异步入队（平台设置 webhookFlowAsync）
+    const asyncFlow = webhookAsync;
+    const dedupeAfterSuccess = await isWebhookFlowDedupeOnSuccessOnly();
+    let results: Awaited<ReturnType<typeof runWebhookFlowPipeline>>;
+    if (asyncFlow) {
+      if (dedupeAfterSuccess) {
+        await enqueueWebhookFlowJob({
+          v: 2,
+          platform,
+          botId,
+          traceId,
+          event,
+          enqueuedAt: Date.now(),
+          attempt: 1,
+        });
+        console.info(`[trace:${traceId}] [Webhook] Event enqueued (dedupe after success)`, { eventId: event.id });
+        results = [];
+      } else {
+        const first = await tryMarkWebhookEventDedupe(platform, botId, event.id);
+        if (!first) {
+          console.info(`[trace:${traceId}] [Webhook] Duplicate event skipped (async)`, { eventId: event.id });
+          results = [];
+        } else {
+          await enqueueWebhookFlowJob({
+            v: 2,
+            platform,
+            botId,
+            traceId,
+            event,
+            enqueuedAt: Date.now(),
+            attempt: 1,
+          });
+          console.info(`[trace:${traceId}] [Webhook] Event enqueued for async flow`, { eventId: event.id });
+          results = [];
+        }
+      }
+    } else {
+      results = await runWebhookFlowPipeline({ platform, botId, event, bot, traceId });
+      console.info(`[trace:${traceId}] [Webhook] Event processed`, {
+        eventId: event.id,
+        eventType: event.type,
+        flowResults: results.map((r) => ({
+          flowId: r.flowId,
+          matched: r.matched,
+          executed: r.executed,
+          duration: r.duration,
+        })),
       });
-    } catch (e) {
-      console.warn('[Webhook] appendEventLog failed', e);
     }
 
     // 11. 记录执行结果（可选：存储到日志）
-    console.log(`Event processed for bot ${botId}:`, {
+    console.log(`[trace:${traceId}] Event processed for bot ${botId}:`, {
       eventId: event.id,
       eventType: event.type,
       flowResults: results.map((r) => ({
@@ -215,15 +276,27 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // 12. 返回响应
     const webhookResponse = adapter.getWebhookResponse(rawData as any);
-    return new NextResponse(JSON.stringify(webhookResponse.body), {
-      status: webhookResponse.status,
-      headers: {
-        'Content-Type': 'application/json',
-        ...webhookResponse.headers,
-      },
-    });
+    return nextResponseFromWebhook(webhookResponse);
+    };
+
+    if (platform === 'wechat_mp') {
+      const cfg = botConfig.config || {};
+      const aes = String(cfg.encodingAESKey || '').trim();
+      return wechatMpPassiveReplyStorage.run(
+        {
+          inboundFields: rawData as Record<string, string>,
+          token: String(cfg.token || ''),
+          appId: String(cfg.appId || '').trim(),
+          encodingAESKey: aes,
+          useEncryptedPassiveReply: !!aes && !webhookAsync,
+        },
+        continueWebhook
+      );
+    }
+
+    return continueWebhook();
   } catch (error) {
-    console.error(`Webhook error for ${platform}/${botId}:`, error);
+    console.error(`[trace:${traceId}] [Webhook] error`, { platform, botId, error });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -247,15 +320,37 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // 获取查询参数
+    const botConfig = await storage.getBot(botId);
+    if (!botConfig) {
+      return NextResponse.json({ error: 'Bot not found' }, { status: 404 });
+    }
+    if (botConfig.platform !== platform) {
+      return NextResponse.json({ error: 'Platform mismatch' }, { status: 400 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const query: Record<string, string> = {};
     searchParams.forEach((value, key) => {
       query[key] = value;
     });
 
-    // 返回验证响应
-    // 具体的验证逻辑由各 Adapter 实现
+    const getResult = adapter.handleWebhookGet?.(query, botConfig.config || {});
+    if (getResult) {
+      if (getResult.type === 'plain') {
+        return new NextResponse(getResult.body, {
+          status: getResult.status ?? 200,
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+            ...getResult.headers,
+          },
+        });
+      }
+      return NextResponse.json(getResult.body, {
+        status: getResult.status ?? 200,
+        headers: getResult.headers,
+      });
+    }
+
     return NextResponse.json({
       status: 'ok',
       platform,

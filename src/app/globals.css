@@ -1,51 +1,217 @@
 @import "tailwindcss";
 
+/* 再亮半步：平面色带色相，主色/辅助面更饱和仍控制明度 */
 @theme {
-  --color-background: hsl(0 0% 100%);
-  --color-foreground: hsl(222.2 84% 4.9%);
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(222.2 84% 4.9%);
-  --color-primary: hsl(221.2 83.2% 53.3%);
-  --color-primary-foreground: hsl(210 40% 98%);
-  --color-secondary: hsl(210 40% 96.1%);
-  --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
-  --color-muted: hsl(210 40% 96.1%);
-  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
-  --color-accent: hsl(210 40% 96.1%);
-  --color-accent-foreground: hsl(222.2 47.4% 11.2%);
-  --color-destructive: hsl(0 84.2% 60.2%);
-  --color-destructive-foreground: hsl(210 40% 98%);
-  --color-border: hsl(214.3 31.8% 91.4%);
-  --color-input: hsl(214.3 31.8% 91.4%);
-  --color-ring: hsl(221.2 83.2% 53.3%);
-  --radius-sm: 0.5rem;
+  --font-sans: var(--font-dashboard), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC",
+    ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand: hsl(191 68% 43%);
+  --color-brand-muted: hsl(191 48% 90%);
+  --color-ambient-b: hsl(164 58% 42%);
+  --color-ambient-warm: hsl(22 96% 92%);
+
+  --color-background: hsl(224 44% 96.8%);
+  --color-foreground: hsl(224 22% 18%);
+  --color-card: hsl(222 38% 99.2%);
+  --color-card-foreground: hsl(224 22% 18%);
+  --color-primary: hsl(191 64% 34%);
+  --color-primary-foreground: hsl(48 100% 98.5%);
+  --color-secondary: hsl(218 38% 92.5%);
+  --color-secondary-foreground: hsl(218 28% 21%);
+  --color-muted: hsl(220 34% 91.5%);
+  --color-muted-foreground: hsl(220 18% 41%);
+  --color-accent: hsl(196 32% 90%);
+  --color-accent-foreground: hsl(196 28% 20%);
+  --color-destructive: hsl(0 78% 48%);
+  --color-destructive-foreground: hsl(48 100% 98.5%);
+  --color-border: hsl(220 32% 86%);
+  --color-input: hsl(220 32% 86%);
+  --color-ring: hsl(191 62% 40%);
+  --color-popover: hsl(222 36% 99.4%);
+  --color-popover-foreground: hsl(224 22% 18%);
+
+  --radius: 0.5rem;
+  --radius-sm: 0.375rem;
+
+  --shadow-surface-xs: 0 1px 2px hsl(218 34% 28% / 0.08);
+  --shadow-surface-sm: 0 1px 2px hsl(218 32% 28% / 0.07),
+    0 8px 26px -8px color-mix(in hsl, hsl(191 58% 40%) 20%, hsl(220 38% 34% / 0.11));
+  --shadow-surface-md: 0 2px 6px -1px hsl(218 30% 32% / 0.1),
+    0 18px 42px -14px color-mix(in hsl, hsl(191 62% 38%) 22%, hsl(220 34% 36% / 0.14));
+  --shadow-surface-lg: 0 8px 28px -6px hsl(218 28% 30% / 0.12),
+    0 28px 64px -20px color-mix(in hsl, hsl(191 65% 36%) 24%, hsl(220 32% 38% / 0.16));
 }
 
 .dark {
-  --color-background: hsl(222.2 84% 4.9%);
-  --color-foreground: hsl(210 40% 98%);
-  --color-card: hsl(222.2 84% 4.9%);
-  --color-card-foreground: hsl(210 40% 98%);
-  --color-primary: hsl(217.2 91.2% 59.8%);
-  --color-primary-foreground: hsl(222.2 47.4% 11.2%);
-  --color-secondary: hsl(217.2 32.6% 17.5%);
-  --color-secondary-foreground: hsl(210 40% 98%);
-  --color-muted: hsl(217.2 32.6% 17.5%);
-  --color-muted-foreground: hsl(215 20.2% 65.1%);
-  --color-accent: hsl(217.2 32.6% 17.5%);
-  --color-accent-foreground: hsl(210 40% 98%);
-  --color-destructive: hsl(0 62.8% 30.6%);
-  --color-destructive-foreground: hsl(210 40% 98%);
-  --color-border: hsl(217.2 32.6% 17.5%);
-  --color-input: hsl(217.2 32.6% 17.5%);
-  --color-ring: hsl(224.3 76.3% 48%);
+  --color-brand: hsl(186 72% 55%);
+  --color-brand-muted: hsl(186 40% 19%);
+  --color-ambient-b: hsl(156 56% 44%);
+  --color-ambient-warm: hsl(18 58% 19%);
+
+  --color-background: hsl(232 32% 8.5%);
+  --color-foreground: hsl(208 30% 96%);
+  --color-card: hsl(228 26% 11.5%);
+  --color-card-foreground: hsl(208 30% 96%);
+  --color-primary: hsl(186 68% 54%);
+  --color-primary-foreground: hsl(232 32% 10%);
+  --color-secondary: hsl(228 24% 16%);
+  --color-secondary-foreground: hsl(200 26% 93%);
+  --color-muted: hsl(226 22% 15%);
+  --color-muted-foreground: hsl(218 18% 62%);
+  --color-accent: hsl(222 26% 17%);
+  --color-accent-foreground: hsl(195 28% 94%);
+  --color-destructive: hsl(0 65% 49%);
+  --color-destructive-foreground: hsl(48 100% 98%);
+  --color-border: hsl(226 20% 21%);
+  --color-input: hsl(226 20% 21%);
+  --color-ring: hsl(186 65% 52%);
+  --color-popover: hsl(228 26% 11.5%);
+  --color-popover-foreground: hsl(208 30% 96%);
+
+  --shadow-surface-xs: 0 1px 2px hsl(228 45% 3% / 0.44);
+  --shadow-surface-sm: 0 1px 2px hsl(228 45% 3% / 0.46),
+    0 14px 36px -12px color-mix(in hsl, hsl(186 65% 45%) 28%, hsl(0 0% 0% / 0.52));
+  --shadow-surface-md: 0 4px 14px -4px hsl(228 40% 3% / 0.5),
+    0 22px 48px -18px color-mix(in hsl, hsl(186 62% 42%) 26%, hsl(0 0% 0% / 0.55));
+  --shadow-surface-lg: 0 12px 40px -10px hsl(228 35% 3% / 0.54),
+    0 36px 72px -24px color-mix(in hsl, hsl(186 58% 40%) 30%, hsl(0 0% 0% / 0.58));
 }
 
 * {
   border-color: var(--color-border);
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  font-size: clamp(14px, 0.32vw + 12.75px, 15px);
+}
+
 body {
-  background-color: var(--color-background);
   color: var(--color-foreground);
+  line-height: 1.5;
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+  font-synthesis-weight: none;
+  min-height: 100dvh;
+  background-color: var(--color-background);
+  background-image:
+    radial-gradient(ellipse 132% 88% at 10% -28%, color-mix(in hsl, var(--color-brand) 28%, transparent), transparent 58%),
+    radial-gradient(ellipse 96% 72% at 92% 2%, color-mix(in hsl, var(--color-ambient-b) 21%, transparent), transparent 52%),
+    radial-gradient(ellipse 85% 55% at 48% 108%, color-mix(in hsl, var(--color-brand) 14%, transparent), transparent 52%),
+    radial-gradient(ellipse 55% 40% at 72% 42%, color-mix(in hsl, var(--color-ambient-warm) 58%, transparent), transparent 65%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+.dark body {
+  background-image:
+    radial-gradient(ellipse 130% 85% at 8% -26%, color-mix(in hsl, var(--color-brand) 25%, transparent), transparent 56%),
+    radial-gradient(ellipse 100% 70% at 94% 4%, color-mix(in hsl, var(--color-ambient-b) 19%, transparent), transparent 54%),
+    radial-gradient(ellipse 80% 52% at 50% 106%, color-mix(in hsl, var(--color-brand) 15%, transparent), transparent 50%),
+    radial-gradient(ellipse 50% 38% at 70% 38%, color-mix(in hsl, var(--color-ambient-warm) 46%, transparent), transparent 62%);
+}
+
+::selection {
+  background-color: color-mix(in hsl, var(--color-brand) 38%, transparent);
+  color: var(--color-foreground);
+}
+
+@layer utilities {
+  .text-hero {
+    text-wrap: balance;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--color-foreground);
+    font-size: clamp(1.5rem, 3.8vw + 0.9rem, 3rem);
+    line-height: 1.1;
+  }
+
+  .text-hero-sub {
+    text-wrap: pretty;
+    color: var(--color-muted-foreground);
+    font-size: clamp(0.875rem, 0.3vw + 0.78rem, 1.0625rem);
+    line-height: 1.6;
+  }
+
+  /** 控制台侧栏 / 顶栏：毛玻璃 + 淡描边 */
+  .dashboard-glass-panel {
+    background-color: color-mix(in hsl, var(--color-card) 78%, transparent);
+    border-color: color-mix(in hsl, var(--color-border) 58%, transparent);
+    box-shadow: var(--shadow-surface-sm);
+  }
+
+  .dashboard-glass-header {
+    background-color: color-mix(in hsl, var(--color-card) 90%, transparent);
+    border-bottom-color: color-mix(in hsl, var(--color-border) 60%, transparent);
+    box-shadow: 0 1px 0 color-mix(in hsl, var(--color-foreground) 4%, transparent);
+  }
+
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+    .dashboard-glass-panel {
+      background-color: color-mix(in hsl, var(--color-card) 58%, transparent);
+      -webkit-backdrop-filter: blur(18px) saturate(1.28);
+      backdrop-filter: blur(18px) saturate(1.28);
+    }
+
+    .dashboard-glass-header {
+      background-color: color-mix(in hsl, var(--color-card) 54%, transparent);
+      -webkit-backdrop-filter: blur(16px) saturate(1.24);
+      backdrop-filter: blur(16px) saturate(1.24);
+      border-bottom-color: color-mix(in hsl, var(--color-border) 55%, transparent);
+    }
+  }
+
+  /** 装饰性渐变条（卡片顶饰等可选用） */
+  .brand-gradient-line {
+    height: 3px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      90deg,
+      color-mix(in hsl, var(--color-brand) 78%, transparent),
+      color-mix(in hsl, var(--color-ambient-b) 72%, transparent),
+      color-mix(in hsl, var(--color-ambient-warm) 65%, transparent)
+    );
+    opacity: 0.95;
+  }
+
+  @keyframes home-rise {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .home-rise {
+    opacity: 0;
+    animation: home-rise 0.72s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .home-rise-d1 {
+    animation-delay: 0.06s;
+  }
+  .home-rise-d2 {
+    animation-delay: 0.12s;
+  }
+  .home-rise-d3 {
+    animation-delay: 0.18s;
+  }
+  .home-rise-d4 {
+    animation-delay: 0.24s;
+  }
+  .home-rise-d5 {
+    animation-delay: 0.3s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .home-rise {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+  }
 }

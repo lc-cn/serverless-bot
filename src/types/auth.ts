@@ -35,12 +35,33 @@ export const PERMISSIONS = {
   FLOWS_DELETE: { id: 'flows:delete', name: '删除流程', resource: 'flows', action: 'delete' as const },
   FLOWS_MANAGE: { id: 'flows:manage', name: '管理流程', resource: 'flows', action: 'manage' as const },
 
+  // LLM Agent
+  AGENTS_READ: { id: 'agents:read', name: '查看 Agent', resource: 'agents', action: 'read' as const },
+  AGENTS_MANAGE: { id: 'agents:manage', name: '管理 Agent', resource: 'agents', action: 'manage' as const },
+
+  // 系统
+  SYSTEM_AUTH_SETTINGS: {
+    id: 'system:auth_settings',
+    name: '认证设置',
+    resource: 'system',
+    action: 'manage' as const,
+  },
+  SYSTEM_PLATFORM_SETTINGS: {
+    id: 'system:platform_settings',
+    name: '平台参数',
+    resource: 'system',
+    action: 'manage' as const,
+  },
+
   // 用户权限
   USERS_READ: { id: 'users:read', name: '查看用户', resource: 'users', action: 'read' as const },
   USERS_CREATE: { id: 'users:create', name: '创建用户', resource: 'users', action: 'create' as const },
   USERS_UPDATE: { id: 'users:update', name: '更新用户', resource: 'users', action: 'update' as const },
   USERS_DELETE: { id: 'users:delete', name: '删除用户', resource: 'users', action: 'delete' as const },
   USERS_MANAGE: { id: 'users:manage', name: '管理用户', resource: 'users', action: 'manage' as const },
+
+  // 审计（内部平台）
+  AUDIT_READ: { id: 'audit:read', name: '查看审计日志', resource: 'audit', action: 'read' as const },
 
   // 角色权限
   ROLES_READ: { id: 'roles:read', name: '查看角色', resource: 'roles', action: 'read' as const },
@@ -81,7 +102,10 @@ export const SYSTEM_ROLES: Record<string, Omit<Role, 'createdAt' | 'updatedAt'>>
       PERMISSIONS.ADAPTERS_MANAGE.id,
       PERMISSIONS.BOTS_MANAGE.id,
       PERMISSIONS.FLOWS_MANAGE.id,
+      PERMISSIONS.AGENTS_MANAGE.id,
+      PERMISSIONS.AGENTS_READ.id,
       PERMISSIONS.USERS_READ.id,
+      PERMISSIONS.AUDIT_READ.id,
     ],
     isSystem: true,
   },
@@ -95,6 +119,8 @@ export const SYSTEM_ROLES: Record<string, Omit<Role, 'createdAt' | 'updatedAt'>>
       PERMISSIONS.BOTS_UPDATE.id,
       PERMISSIONS.FLOWS_READ.id,
       PERMISSIONS.FLOWS_UPDATE.id,
+      PERMISSIONS.AGENTS_READ.id,
+      PERMISSIONS.AGENTS_MANAGE.id,
     ],
     isSystem: true,
   },
@@ -106,6 +132,7 @@ export const SYSTEM_ROLES: Record<string, Omit<Role, 'createdAt' | 'updatedAt'>>
       PERMISSIONS.ADAPTERS_READ.id,
       PERMISSIONS.BOTS_READ.id,
       PERMISSIONS.FLOWS_READ.id,
+      PERMISSIONS.AGENTS_READ.id,
     ],
     isSystem: true,
   },
@@ -115,6 +142,8 @@ export const SYSTEM_ROLES: Record<string, Omit<Role, 'createdAt' | 'updatedAt'>>
 
 export const UserSchema = z.object({
   id: z.string(),
+  /** 规范化小写唯一登录名（可选，与邮箱二选一或并存） */
+  username: z.string().optional(),
   email: z.string().email().optional(),
   name: z.string(),
   image: z.string().url().optional(),
@@ -122,7 +151,7 @@ export const UserSchema = z.object({
   // 认证相关
   passwordHash: z.string().optional(), // 密码登录（可选）
   githubId: z.string().optional(), // GitHub OAuth
-  
+
   // RBAC
   roleIds: z.array(z.string()), // 角色ID列表
   
@@ -134,6 +163,12 @@ export const UserSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   lastLoginAt: z.string().optional(),
+
+  /** 完成控制台新手引导的时间（毫秒）；未引导或未写库为 null */
+  onboardingCompletedAt: z.number().nullable().optional(),
+
+  /** 分板块进度 JSON 字符串；解析见 `onboarding-sections.ts` */
+  onboardingSectionsJson: z.string().nullable().optional(),
 });
 
 export type User = z.infer<typeof UserSchema>;
@@ -156,6 +191,8 @@ export interface SessionUser {
   image?: string;
   roleIds: string[];
   permissions: string[];
+  /** 可选；门禁以服务端 `getUser` 为准 */
+  onboardingCompletedAt?: number | null;
 }
 
 export interface ExtendedSession {
@@ -170,4 +207,5 @@ export interface ExtendedJWT {
   name?: string;
   email?: string;
   picture?: string;
+  onboardingCompletedAt?: number | null;
 }

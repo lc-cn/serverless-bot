@@ -1,63 +1,77 @@
 # Serverless Bot
 
-一个基于 Next.js 的 Serverless 机器人框架，专为 Vercel 部署设计。
+基于 **Next.js** 的机器人控制台与 Webhook 框架：可部署于 **任意能跑 Node 的环境**（Vercel、Docker、VPS 等）。主数据使用 **libSQL**（Turso 云或自建/本地 `file:`），聊天与事件日志使用 **Redis HTTP API**（`@upstash/redis`，与 Upstash/Vercel KV 等 REST 端兼容）或退化为**内存**。
 
 ## 特性
 
-- 🚀 **Serverless 架构** - 完全基于 Vercel Serverless Functions
+- 🚀 **多形态部署** - Vercel Serverless、Docker（standalone）、`pnpm start` 自建
 - 🔌 **多平台支持** - 可扩展的适配器架构，支持 Telegram、Discord、Slack 等
-- 🔄 **事件流转** - 灵活的消息/请求/通知事件处理流程
-- ⚡ **零配置部署** - 一键部署到 Vercel
+- 🔄 **事件路由** - 将消息/请求/通知事件交给 Agent 或步骤流水线处理
+- 💾 **可插拔缓存** - Redis REST / 内存 KV；主库 Turso
 - 🎨 **可视化管理** - 内置 Web 管理界面
+- 🌐 **多语言** - [next-intl](https://next-intl.dev/docs/getting-started/app-router)：`/zh-CN/...` 与 `/en/...`，控制台右上角可切换；文案在 `src/messages/`，详见 `docs/runbook/deployment.md`「控制台多语言」
 
 ## 快速开始
 
 ### 安装依赖
 
+推荐使用 **pnpm**（与仓库锁文件一致）：
+
 ```bash
-npm install
-# 或
 pnpm install
 ```
+
+亦可用 `npm install` / `yarn`，但请以本仓库的 `pnpm-lock.yaml` 为准。
+
+启用 Corepack 可固定 pnpm 版本：`corepack enable`（可选）。
 
 ### 本地开发
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
-访问 http://localhost:3000 查看管理界面。
+默认开发端口为 **3001**：http://localhost:3001
 
-### 部署到 Vercel
+### 认证（登录与注册）
 
-```bash
-vercel
-```
+应用 **NextAuth**；迁移 `auth_upgrade` 后主策略在数据库表 `auth_settings`（超级管理员在控制台 **设置 → 认证** 修改）：开放/关闭注册、GitHub 与 Passkey 开关、是否允许绑定与 OAuth 自助注册、**SMTP 与邮件模板**（用于后续邮箱验证/重置密码等）等。
+
+- **邮箱/用户名 + 密码**：自助注册（若未关闭）与登录；首个成功创建的用户主体自动为 **super_admin**。
+- **GitHub**：在控制台 **设置 → 认证** 填写 OAuth 应用的 Client ID / Secret（写入 `auth_settings`）；是否允许新用户或绑定仍由同页开关控制。回调地址为 `{NEXTAUTH_URL}/api/auth/callback/github`。
+- **Passkey**：依赖 `WEBAUTHN_RP_ID`（生产通常为站点域名，无端口）与 `NEXTAUTH_URL`（须与实际访问 URL 一致）。
+
+详见 `.env.example` 与 [docs/runbook/deployment.md](./docs/runbook/deployment.md)。
+
+### 部署方式
+
+- **Vercel 等 Serverless**：`vercel` 或等价平台，配置 libSQL + Redis REST（或仅内存调试）。
+- **Docker**：`docker build -t serverless-bot .`，详见 [docs/runbook/deployment.md](./docs/runbook/deployment.md)（[文档索引](./docs/README.md)）。
+- **自建 Node**：`pnpm build && pnpm start`（或运行 `.next/standalone` 内的 `node server.js`），并配置 `NEXTAUTH_URL` 等环境变量。
 
 ## 项目结构
 
 ```
 src/
-├── adapters/          # 平台适配器
-│   ├── telegram/      # Telegram 适配器示例
-│   └── index.ts       # 适配器注册入口
-├── app/
-│   ├── api/
-│   │   ├── adapters/  # 适配器管理 API
-│   │   ├── flows/     # 流程管理 API
-│   │   └── webhook/   # Webhook 入口
-│   ├── (dashboard)/   # 管理界面页面
-│   └── page.tsx       # 首页
-├── components/        # React 组件
-├── core/              # 核心模块
-│   ├── bot.ts         # Bot 基类
-│   ├── adapter.ts     # Adapter 基类
-│   └── flow.ts        # Flow 处理器
-├── lib/               # 工具库
-│   ├── storage.ts     # 存储层
-│   └── utils.ts       # 工具函数
-└── types/             # 类型定义
+├── adapters/          # 各平台 Adapter + Bot 实现与注册（index.ts）
+├── app/               # Next.js App Router：页面、(dashboard)、api、install、auth
+├── components/        # 可复用 UI 与业务表单组件
+├── core/              # 领域核心：Adapter/Bot 契约、FlowProcessor、匹配与权限
+├── llm/               # LLM  vendor 适配与注册（OpenAI 兼容等）
+├── lib/               # 服务端工具与数据访问（见 src/lib/README.md）
+│   ├── data-layer/    # DB+KV 组合入口
+│   ├── database/ kv/ install/
+│   ├── persistence/   # data + storage 门面 + chat-store
+│   ├── auth/          # NextAuth、认证设置、permissions
+│   ├── crypto/ steps/ trigger/ onboarding/ runtime/ http/ audit/ mail/ webauthn/ …
+│   └── shared/        # 通用 utils（如 shadcn 用的 cn）
+├── proxy.ts           # 请求边界（安装重定向等；旧名 middleware）
+├── types/             # 全站类型与 auth 类型
+migrations/            # SQL 迁移（SQLite/libSQL）；mysql/ 为 MySQL 脚本
+docs/                  # 文档中心（docs/README.md）
 ```
+
+更细的 `lib` 分层说明见 [src/lib/README.md](./src/lib/README.md)；部署与环境见 [docs/runbook/deployment.md](./docs/runbook/deployment.md)。
 
 ## 核心概念
 
@@ -146,17 +160,21 @@ POST /api/webhook/{platform}/{bot_id}
 
 示例：
 ```
-POST https://your-app.vercel.app/api/webhook/telegram/my-bot-123
+POST https://your-domain.com/api/webhook/telegram/my-bot-123
 ```
 
 ## 环境变量
 
+更完整的说明见 [.env.example](./.env.example) 与 [docs/runbook/deployment.md](./docs/runbook/deployment.md)。
+
 | 变量名 | 描述 | 必需 |
 |--------|------|------|
-| `VERCEL_KV_REST_API_URL` | Vercel KV 存储 URL | 否 |
-| `VERCEL_KV_REST_API_TOKEN` | Vercel KV 存储 Token | 否 |
+| `LIBSQL_URL` / `LIBSQL_AUTH_TOKEN` | 主库 libSQL；本地可用 `file:./db.sqlite` | 生产建议 |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST | 否 |
+| `KV_BACKEND=memory` | 强制内存 KV（不连 Redis） | 否 |
+| `NEXTAUTH_URL` / `NEXTAUTH_SECRET` | 登录与公网根 URL、会话 | 是 |
 
-> 如果未配置 Vercel KV，将使用内存存储（数据在重启后丢失）
+> 未配置 Redis REST 时，聊天与事件日志使用**进程内内存**，重启后丢失。
 
 ## API 文档
 

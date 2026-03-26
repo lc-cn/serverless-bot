@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getEventLogs } from '@/lib/kv-logs';
+import { getEventLogs } from '@/lib/kv/kv-logs';
+import { apiRequireBotAccess } from '@/lib/auth/permissions';
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,6 +12,9 @@ export async function GET(req: NextRequest) {
     if (!platform || !botId) {
       return NextResponse.json({ error: 'platform and bot_id required' }, { status: 400 });
     }
+
+    const gate = await apiRequireBotAccess(botId, 'read');
+    if (gate.error) return gate.error;
 
     const logs = await getEventLogs(platform, botId, Math.max(1, Math.min(200, limit)));
     return NextResponse.json({ logs });

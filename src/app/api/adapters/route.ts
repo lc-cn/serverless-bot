@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { storage } from '@/lib/unified-storage';
+import { storage } from '@/lib/persistence';
 import { adapterRegistry } from '@/core';
+import { apiRequireAuth } from '@/lib/auth/permissions';
 
 // 确保适配器被注册
 import '@/adapters';
@@ -10,6 +11,9 @@ import '@/adapters';
  */
 export async function GET() {
   try {
+    const { error } = await apiRequireAuth();
+    if (error) return error;
+
     // 获取注册的适配器信息
     const registeredAdapters = adapterRegistry.getAll().map((adapter) => ({
       ...adapter.getInfo(),
@@ -48,6 +52,9 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
+    const { error, session } = await apiRequireAuth();
+    if (error) return error;
+
     const body = await request.json();
     const { platform, name, description, enabled, config } = body;
 
@@ -72,6 +79,16 @@ export async function POST(request: NextRequest) {
     };
 
     await storage.saveAdapter(adapterConfig);
+
+    const { writeAuditLog } = await import('@/lib/audit');
+    void writeAuditLog({
+      actorUserId: session!.user.id,
+      action: existing ? 'adapter.update' : 'adapter.create',
+      entityType: 'adapter',
+      entityId: platform,
+      payload: { platform, enabled: adapterConfig.enabled, name: adapterConfig.name },
+      request,
+    });
 
     return NextResponse.json({ success: true, adapter: adapterConfig });
   } catch (error) {

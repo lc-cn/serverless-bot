@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +31,7 @@ interface UserListClientProps {
 }
 
 export function UserListClient({ initialUsers, roles }: UserListClientProps) {
+  const t = useTranslations('Ui');
   const router = useRouter();
   const [users, setUsers] = useState<UserInfo[]>(initialUsers);
   const [showCreateOverlay, setShowCreateOverlay] = useState(false);
@@ -153,13 +155,13 @@ export function UserListClient({ initialUsers, roles }: UserListClientProps) {
       <div className="flex justify-end mb-6">
         <Button onClick={() => setShowCreateOverlay(true)}>
           <Plus className="w-4 h-4 mr-2" />
-          添加用户
+          {t('addUser')}
         </Button>
       </div>
 
       {users.length === 0 ? (
         <Card className="p-8 text-center">
-          <div className="text-muted-foreground mb-4">暂无用户</div>
+          <div className="text-muted-foreground mb-4">{t('emptyUsers')}</div>
         </Card>
       ) : (
         <div className="space-y-4">
@@ -187,7 +189,7 @@ export function UserListClient({ initialUsers, roles }: UserListClientProps) {
                         )}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {user.email || '无邮箱'}
+                        {user.email || t('noEmail')}
                       </div>
                     </div>
                     <div className="flex gap-1">
@@ -199,7 +201,7 @@ export function UserListClient({ initialUsers, roles }: UserListClientProps) {
                       ))}
                     </div>
                     <Badge variant={user.isActive ? 'success' : 'secondary'}>
-                      {user.isActive ? '活跃' : '禁用'}
+                      {user.isActive ? t('active') : t('inactive')}
                     </Badge>
                   </div>
 
@@ -242,32 +244,32 @@ export function UserListClient({ initialUsers, roles }: UserListClientProps) {
           setSelectedUser(null);
           setFormData({ name: '', email: '', roleIds: [] });
         }}
-        title={showEditOverlay ? '编辑用户' : '添加用户'}
+        title={showEditOverlay ? t('editUser') : t('addUser')}
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">用户名</label>
+            <label className="block text-sm font-medium mb-1">{t('fieldUsername')}</label>
             <Input
               value={formData.name}
               onChange={(e) =>
                 setFormData({ ...formData, name: e.target.value })
               }
-              placeholder="用户名"
+              placeholder={t('placeholderUsername')}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">邮箱</label>
+            <label className="block text-sm font-medium mb-1">{t('fieldEmail')}</label>
             <Input
               type="email"
               value={formData.email}
               onChange={(e) =>
                 setFormData({ ...formData, email: e.target.value })
               }
-              placeholder="用户邮箱（可选）"
+              placeholder={t('placeholderEmailOptional')}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">角色</label>
+            <label className="block text-sm font-medium mb-1">{t('fieldRoles')}</label>
             <div className="flex flex-wrap gap-2 mt-2">
               {roles.map((role) => (
                 <label
@@ -282,7 +284,7 @@ export function UserListClient({ initialUsers, roles }: UserListClientProps) {
                   <span>{role.name}</span>
                   {role.isSystem && (
                     <Badge variant="secondary" className="text-xs">
-                      系统
+                      {t('system')}
                     </Badge>
                   )}
                 </label>
@@ -299,10 +301,10 @@ export function UserListClient({ initialUsers, roles }: UserListClientProps) {
                 setFormData({ name: '', email: '', roleIds: [] });
               }}
             >
-              取消
+              {t('cancel')}
             </Button>
             <Button onClick={showEditOverlay ? handleUpdate : handleCreate}>
-              {showEditOverlay ? '保存' : '创建'}
+              {showEditOverlay ? t('save') : t('create')}
             </Button>
           </div>
         </div>
@@ -312,16 +314,16 @@ export function UserListClient({ initialUsers, roles }: UserListClientProps) {
       <Overlay
         isOpen={showDeleteOverlay}
         onClose={() => setShowDeleteOverlay(false)}
-        title="删除用户"
+        title={t('titleDeleteUser')}
       >
         <div className="space-y-4">
-          <p>确定要删除用户「{selectedUser?.name}」吗？此操作不可撤销。</p>
+          <p>{t('confirmDeleteNamed', { name: selectedUser?.name ?? '' })}</p>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={() => setShowDeleteOverlay(false)}>
-              取消
+              {t('cancel')}
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
-              删除
+              {t('delete')}
             </Button>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBot } from '@/lib/data';
+import { getBot } from '@/lib/persistence';
+import { apiRequireBotAccess } from '@/lib/auth/permissions';
 
 async function getApplicationId(token: string): Promise<string> {
   const res = await fetch('https://discord.com/api/v10/oauth2/applications/@me', {
@@ -37,6 +38,9 @@ export async function POST(req: NextRequest) {
     if (!botId) {
       return NextResponse.json({ error: 'botId is required' }, { status: 400 });
     }
+
+    const gatePost = await apiRequireBotAccess(String(botId), 'admin');
+    if (gatePost.error) return gatePost.error;
 
     const bot = await getBot(botId);
     if (!bot || bot.platform !== 'discord') {
@@ -91,6 +95,9 @@ export async function GET(req: NextRequest) {
     if (!botId) {
       return NextResponse.json({ error: 'botId is required' }, { status: 400 });
     }
+
+    const gateGet = await apiRequireBotAccess(botId, 'admin');
+    if (gateGet.error) return gateGet.error;
 
     const bot = await getBot(botId);
     if (!bot || bot.platform !== 'discord') {

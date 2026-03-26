@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authStorage } from '@/lib/unified-storage';
-import { apiRequirePermission } from '@/lib/permissions';
+import { storage } from '@/lib/persistence';
+import { apiRequirePermission } from '@/lib/auth/permissions';
 
 // 获取所有用户
 export async function GET() {
@@ -8,13 +8,14 @@ export async function GET() {
   if (error) return error;
 
   try {
-    const users = await authStorage.getUsers();
-    const roles = await authStorage.getRoles();
+    const users = await storage.getUsers();
+    const roles = await storage.getRoles();
 
     // 返回安全的用户信息（不含密码和凭证详情）
     const safeUsers = users.map((user) => ({
       id: user.id,
       name: user.name,
+      username: user.username,
       email: user.email,
       image: user.image,
       roleIds: user.roleIds,
@@ -47,13 +48,13 @@ export async function POST(request: NextRequest) {
 
     // 检查邮箱是否已存在
     if (email) {
-      const existing = await authStorage.getUserByEmail(email);
+      const existing = await storage.getUserByEmail(email);
       if (existing) {
         return NextResponse.json({ error: 'Email already exists' }, { status: 400 });
       }
     }
 
-    const user = await authStorage.createUser({
+    const user = await storage.createUser({
       name,
       email,
       roleIds: roleIds || [],

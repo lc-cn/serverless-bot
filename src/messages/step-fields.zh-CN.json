@@ -1,0 +1,284 @@
+{
+  "send_message": {
+    "messageType": {
+      "label": "消息类型",
+      "options": {
+        "text": "普通文本",
+        "template": "模板（支持 $'{'variable'}' 和 [type:data]）",
+        "segments": "消息段数组"
+      }
+    },
+    "content": {
+      "label": "消息内容",
+      "description": "普通文本或模板内容...",
+      "placeholder": "输入要发送的消息内容..."
+    },
+    "targetType": {
+      "label": "目标类型",
+      "options": {
+        "auto": "默认（回复触发者）",
+        "private": "私聊",
+        "group": "群聊"
+      }
+    },
+    "targetId": {
+      "label": "目标 ID",
+      "description": "指定发送目标的 ID，留空则回复触发者",
+      "placeholder": "用户ID或群组ID"
+    }
+  },
+  "call_api": {
+    "url": { "label": "API 地址", "placeholder": "https://api.example.com/endpoint" },
+    "method": {
+      "label": "HTTP 方法",
+      "options": { "GET": "GET", "POST": "POST", "PUT": "PUT", "DELETE": "DELETE", "PATCH": "PATCH" }
+    },
+    "timeoutMs": {
+      "label": "超时（毫秒）",
+      "description": "单请求超时；默认取环境变量 CALL_API_DEFAULT_TIMEOUT_MS（默认 60000），且不超过流程总预算与 CALL_API_MAX_TIMEOUT_MS",
+      "placeholder": "60000"
+    },
+    "headers": {
+      "label": "请求头",
+      "description": "JSON 格式的请求头",
+      "placeholder": "｛\"Authorization\": \"Bearer token\"｝"
+    },
+    "body": {
+      "label": "请求体",
+      "description": "JSON 格式的请求体，支持变量",
+      "placeholder": "｛\"key\": \"$'{'variable'}'\"｝"
+    },
+    "timeout": { "label": "超时时间（毫秒）" },
+    "saveAs": {
+      "label": "保存结果到变量",
+      "description": "将 API 响应保存到指定变量名",
+      "placeholder": "apiResult"
+    }
+  },
+  "call_bot": {
+    "method": { "label": "调用方法", "placeholder": "sendMessage, getUserInfo, etc." },
+    "params": {
+      "label": "方法参数",
+      "description": "JSON 格式的参数",
+      "placeholder": "｛\"userId\": \"$'{'userId'}'\"｝"
+    }
+  },
+  "hardcode": {
+    "messageType": {
+      "label": "消息类型",
+      "options": {
+        "text": "普通文本",
+        "template": "模板（支持 $'{'variable'}' 和 [type:data] 语法）",
+        "segments": "消息段数组"
+      }
+    },
+    "content": {
+      "label": "回复内容",
+      "placeholder": "示例1: 你好\n示例2: $'{'userInfo'}' （引用变量）\n示例3: [text:你好][at:123] （消息段语法）"
+    }
+  },
+  "log": {
+    "level": {
+      "label": "日志级别",
+      "options": { "debug": "Debug", "info": "Info", "warn": "Warn", "error": "Error" }
+    },
+    "message": { "label": "日志消息", "placeholder": "日志内容，支持变量 $'{'variable'}'" },
+    "data": {
+      "label": "附加数据",
+      "description": "额外的日志数据（JSON）",
+      "placeholder": "｛\"key\": \"value\"｝"
+    }
+  },
+  "get_user_info": {
+    "userId": {
+      "label": "用户 ID",
+      "description": "留空则获取触发者信息",
+      "placeholder": "$'{'sender.userId'}'"
+    },
+    "saveAs": { "label": "保存到变量" }
+  },
+  "get_group_info": {
+    "groupId": {
+      "label": "群组 ID",
+      "description": "留空则获取当前群组信息",
+      "placeholder": "$'{'groupId'}'"
+    },
+    "saveAs": { "label": "保存到变量" }
+  },
+  "set_variable": {
+    "name": { "label": "变量名", "placeholder": "myVariable" },
+    "value": {
+      "label": "变量值",
+      "description": "支持模板语法和其他变量引用",
+      "placeholder": "$'{'otherVariable'}' or literal value"
+    },
+    "type": {
+      "label": "值类型",
+      "options": { "string": "字符串", "number": "数字", "boolean": "布尔值", "json": "JSON" }
+    }
+  },
+  "conditional": {
+    "condition": {
+      "label": "条件表达式",
+      "description": "支持 JavaScript 表达式，可使用变量",
+      "placeholder": "$'{'count'}' > 10 || $'{'status'}' === \"active\""
+    },
+    "onTrue": {
+      "label": "条件为真时执行",
+      "description": "步骤 ID 数组或配置对象",
+      "placeholder": "[\"step1\", \"step2\"]"
+    },
+    "onFalse": {
+      "label": "条件为假时执行",
+      "description": "步骤 ID 数组或配置对象",
+      "placeholder": "[\"step3\"]"
+    }
+  },
+  "delay": {
+    "duration": { "label": "延迟时间（毫秒）" },
+    "message": { "label": "延迟说明", "placeholder": "等待用户响应..." }
+  },
+  "random_reply": {
+    "replies": {
+      "label": "回复列表",
+      "description": "JSON 数组：元素可为纯字符串，或含 content、text、template、messageType 等字段的对象。",
+      "placeholder": "[\"回复1\", \"回复2\", \"对象元素可含 content 字段与 $'{'name'}' 模板\"]"
+    }
+  },
+  "template_message": {
+    "template": {
+      "label": "消息模板",
+      "description": "使用 $'{'变量名'}' 进行变量替换",
+      "placeholder": "你好 $'{'userName'}'，欢迎加入 $'{'groupName'}'！"
+    },
+    "variables": {
+      "label": "模板变量",
+      "description": "定义模板中使用的变量及其来源",
+      "placeholder": "｛\"userName\": \"$'{'sender.name'}'\", \"groupName\": \"$'{'group.name'}'\"｝"
+    }
+  },
+  "forward_message": {
+    "targetType": {
+      "label": "转发目标类型",
+      "options": { "private": "私聊", "group": "群聊" }
+    },
+    "targetId": { "label": "目标 ID", "placeholder": "用户ID或群组ID" },
+    "messageId": {
+      "label": "消息 ID",
+      "description": "要转发的消息ID，留空则转发触发消息",
+      "placeholder": "$'{'messageId'}'"
+    }
+  },
+  "handle_request": {
+    "action": {
+      "label": "处理动作",
+      "options": { "approve": "同意", "reject": "拒绝" }
+    },
+    "reason": { "label": "处理理由", "placeholder": "拒绝理由..." }
+  },
+  "recall_message": {
+    "messageId": {
+      "label": "消息 ID",
+      "description": "要撤回的消息ID，留空则撤回触发消息",
+      "placeholder": "$'{'messageId'}'"
+    }
+  },
+  "extract_data": {
+    "source": {
+      "label": "数据源",
+      "options": { "message": "消息内容", "variable": "变量" }
+    },
+    "variablePath": {
+      "label": "变量路径",
+      "description": "数据源为「变量」时使用；支持点路径，如 apiResponse.data 或 event.rawContent",
+      "placeholder": "myVar.field"
+    },
+    "extractionType": {
+      "label": "提取方式",
+      "options": { "regex": "正则", "jsonpath": "JSON 点路径" }
+    },
+    "pattern": {
+      "label": "正则表达式 或 JSON 内点路径",
+      "placeholder": "regex: (\\d+) | jsonpath: user.name"
+    },
+    "saveAs": { "label": "保存到变量", "placeholder": "extractedData" },
+    "multiple": { "label": "正则：提取全部匹配" },
+    "captureGroups": {
+      "label": "捕获组映射（仅正则首条匹配）",
+      "description": "将捕获组索引映射到变量名：键为捕获组序号的字符串，值为变量名（与 JSON 对象书写方式相同）。",
+      "placeholder": "例：键 \"1\" 对应 \"number\"，键 \"2\" 对应 \"unit\""
+    }
+  },
+  "llm_agent": {
+    "agentId": {
+      "label": "Agent ID",
+      "description": "在「LLM Agent」页面创建的实例 ID。若 Agent 关联了带「实现步骤」的工具，模型发 function call 时会执行工具内配置的步骤（如 call_api），参数进变量；请把返回模型可读的内容写入变量 toolResult。",
+      "placeholder": "llm_agent_xxx"
+    },
+    "userPrompt": {
+      "label": "用户提示（可选）",
+      "description": "可与 Agent 预置系统提示组合；支持与流水线步骤相同的 $'{'变量'}'/表达式插值。Agent 步骤内另可使用 $'{'sys.nowLocal'}'、$'{'sys.timezone'}'、$'{'sys.cwd'}' 等（与预置系统提示一致，每次调用 LLM 前即时计算）。",
+      "placeholder": "例如：用户消息：$'{'message.content'}'"
+    },
+    "saveAs": { "label": "保存模型正文到变量", "placeholder": "llmReply" },
+    "saveRawAs": { "label": "完整 API JSON 保存到变量（可选）", "placeholder": "llmRaw" },
+    "skillInject": {
+      "label": "技能注入策略（覆盖 Agent 默认）",
+      "description": "按需：默认只给目录；全文仅在选 full 或填写「本回合加载正文」。inherit 使用 Agent 里配置。",
+      "options": {
+        "inherit": "沿用 Agent 配置",
+        "none": "不注入（仅本回合指定 id 的正文）",
+        "summary": "仅目录（名称+简介+技能 id）",
+        "full": "关联技能全文"
+      }
+    },
+    "loadSkillIds": {
+      "label": "本回合加载正文的技能 id（可选）",
+      "description": "JSON 数组，如 [\"llm_skill_xxx\"]，支持 $'{'变量'}'。须为当前 Agent 已关联的技能。",
+      "placeholder": "[\"llm_skill_xxx\"]"
+    },
+    "temperature": { "label": "温度（可选，覆盖 Agent 默认）" },
+    "maxTokens": { "label": "max_tokens（可选）" },
+    "timeout": { "label": "超时（毫秒）" }
+  },
+  "parse_json": {
+    "source": {
+      "label": "JSON 文本",
+      "description": "支持 $'{'变量'}'；常接 API 文本或模型参数字符串",
+      "placeholder": "$'{'apiBody'}' 或任意 JSON 文本"
+    },
+    "saveAs": { "label": "解析结果保存到变量" },
+    "optional": {
+      "label": "解析失败时不报错",
+      "description": "开启后失败时写入 null 并继续"
+    }
+  },
+  "stringify_json": {
+    "variablePath": {
+      "label": "变量路径",
+      "description": "上下文中的变量名，支持点路径，如 apiResult 或 toolArgs.city",
+      "placeholder": "apiResult"
+    },
+    "pretty": { "label": "美化缩进" },
+    "saveAs": {
+      "label": "保存到变量",
+      "description": "常填 toolResult，便于回传给模型"
+    }
+  },
+  "base64_encode": {
+    "source": { "label": "原文（UTF-8）", "placeholder": "$'{'rawText'}'" },
+    "saveAs": { "label": "保存到变量" }
+  },
+  "base64_decode": {
+    "source": { "label": "Base64 字符串", "placeholder": "$'{'payload'}'" },
+    "saveAs": { "label": "保存到变量" }
+  },
+  "url_encode": {
+    "source": { "label": "要编码的字符串", "placeholder": "$'{'city'}'" },
+    "saveAs": { "label": "保存到变量" }
+  },
+  "url_decode": {
+    "source": { "label": "已编码的字符串", "placeholder": "$'{'encodedQuery'}'" },
+    "saveAs": { "label": "保存到变量" }
+  }
+}

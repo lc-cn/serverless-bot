@@ -25,7 +25,7 @@ export class QQBot extends Bot {
   private tokenExpiresAt: number = 0;
 
   constructor(config: BotConfig) {
-    super(config.id, 'qq', config.name, config.config);
+    super(config.id, 'qq', config.name, config.config, config.ownerId);
     this.appId = (config.config.appId as string) || '';
     this.appSecret = (config.config.appSecret as string) || '';
   }

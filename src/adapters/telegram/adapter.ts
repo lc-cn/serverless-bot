@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Adapter, FormUISchema, AdapterFeature } from '@/core/adapter';
+import type { AdapterSetupGuideDefinition } from '@/core/adapter-setup-guide';
 import { TelegramBot } from './bot';
 import {
   BotConfig,
@@ -8,7 +9,7 @@ import {
   Message,
   UserRole,
 } from '@/types';
-import { generateId } from '@/lib/utils';
+import { generateId } from '@/lib/shared/utils';
 
 /**
  * Telegram 适配器
@@ -40,6 +41,30 @@ export class TelegramAdapter extends Adapter {
 
   getAdapterConfigUISchema(): FormUISchema {
     return { fields: [] };
+  }
+
+  getSetupGuide(): AdapterSetupGuideDefinition | null {
+    return {
+      namespace: 'telegram',
+      sectionTitleKey: 'getTokenTitle',
+      steps: [
+        { titleKey: 'step1Title', border: 'blue', body: { kind: 'rich', messageKey: 'step1Body' } },
+        { titleKey: 'step2Title', border: 'blue', body: { kind: 'rich', messageKey: 'step2Body' } },
+        { titleKey: 'step3Title', border: 'blue', body: { kind: 'rich', messageKey: 'step3Body' } },
+        { titleKey: 'step4Title', border: 'green', body: { kind: 'rich', messageKey: 'step4Body' } },
+      ],
+      tipKey: 'tip',
+      usage: {
+        lines: [
+          { kind: 'lead', key: 'usage1' },
+          { kind: 'lead', key: 'usage2' },
+          { kind: 'lead', key: 'usage3' },
+          { kind: 'lead', key: 'usage4' },
+          { kind: 'lead', key: 'usage5' },
+          { kind: 'lead', key: 'usage6' },
+        ],
+      },
+    };
   }
 
   getBotConfigUISchema(): FormUISchema {
@@ -137,7 +162,8 @@ export class TelegramAdapter extends Adapter {
   async verifyWebhook(
     rawData: unknown,
     headers: Record<string, string>,
-    config: Record<string, unknown>
+    config: Record<string, unknown>,
+    _query?: Record<string, string>
   ): Promise<boolean> {
     const secret = config.secret as string | undefined;
     

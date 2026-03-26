@@ -4,6 +4,7 @@ export {
   adapterRegistry,
   type AdapterInfo,
   type WebhookResponse,
+  type WebhookGetResult,
   type AdapterFeature,
   type FormField,
   type FormUISchema,
@@ -14,4 +15,14 @@ export {
   Matcher,
   PermissionChecker,
   type FlowExecutionResult,
+  type FlowRuntimeSnapshot,
 } from './flow';
+export type {
+  AdapterSetupGuideDefinition,
+  SetupGuideStepDef,
+  SetupGuideBody,
+  SetupGuideUsageDef,
+  SetupGuideUsageLine,
+  SetupGuideWarnDef,
+  SetupGuideStepBorder,
+} from './adapter-setup-guide';

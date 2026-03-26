@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authStorage } from '@/lib/unified-storage';
-import { apiRequirePermission } from '@/lib/permissions';
+import { storage } from '@/lib/persistence';
+import { apiRequirePermission } from '@/lib/auth/permissions';
+import { writeAuditLog } from '@/lib/audit';
+import type { User } from '@/types/auth';
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -14,12 +16,12 @@ export async function GET(request: NextRequest, { params }: Params) {
   const { id } = await params;
 
   try {
-    const user = await authStorage.getUser(id);
+    const user = await storage.getUser(id);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const roles = await authStorage.getRoles();
+    const roles = await storage.getRoles();
 
     return NextResponse.json({
       user: {
@@ -50,7 +52,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
 
   try {
-    const user = await authStorage.getUser(id);
+    const user = await storage.getUser(id);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
@@ -60,19 +62,19 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     // 检查邮箱是否已被其他用户使用
     if (email && email !== user.email) {
-      const existing = await authStorage.getUserByEmail(email);
+      const existing = await storage.getUserByEmail(email);
       if (existing) {
         return NextResponse.json({ error: 'Email already exists' }, { status: 400 });
       }
     }
 
-    const updates: Record<string, unknown> = {};
+    const updates: Partial<User> = {};
     if (name !== undefined) updates.name = name;
     if (email !== undefined) updates.email = email;
     if (roleIds !== undefined) updates.roleIds = roleIds;
     if (isActive !== undefined) updates.isActive = isActive;
 
-    const updated = await authStorage.updateUser(id, updates);
+    const updated = await storage.updateUser(id, updates);
 
     return NextResponse.json({
       user: {
@@ -103,10 +105,18 @@ export async function DELETE(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400 });
     }
 
-    const success = await authStorage.deleteUser(id);
+    const success = await storage.deleteUser(id);
     if (!success) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
+
+    void writeAuditLog({
+      actorUserId: session!.user.id,
+      action: 'user.delete',
+      entityType: 'user',
+      entityId: id,
+      request,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

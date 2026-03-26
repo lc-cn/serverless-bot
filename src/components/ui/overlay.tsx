@@ -1,8 +1,12 @@
 'use client';
 
-import { cn } from '@/lib/utils';
-import { X } from 'lucide-react';
-import { useEffect, useCallback } from 'react';
+import { cn } from '@/lib/shared/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface OverlayProps {
   isOpen: boolean;
@@ -12,61 +16,36 @@ interface OverlayProps {
   className?: string;
 }
 
+/** 兼容旧 API 的模态层，底层使用 shadcn Dialog（Radix）。 */
 export function Overlay({ isOpen, onClose, children, title, className }: OverlayProps) {
-  const handleEscape = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    },
-    [onClose]
-  );
-
-  useEffect(() => {
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen, handleEscape]);
-
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-      />
-
-      {/* Content */}
-      <div
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent
         className={cn(
-          'relative z-10 w-full max-w-lg max-h-[90vh] overflow-auto bg-background rounded-lg shadow-lg',
-          className
+          'max-h-[90vh] min-w-0 gap-0 overflow-y-auto overflow-x-hidden p-0 sm:rounded-lg',
+          title ? 'pt-0' : undefined,
+          className,
         )}
       >
-        {/* Header */}
-        {title && (
-          <div className="flex items-center justify-between p-4 border-b">
-            <h2 className="text-lg font-semibold">{title}</h2>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-md hover:bg-muted transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+        {title ? (
+          <>
+            <DialogHeader className="space-y-0 border-b border-border p-4 pr-12 text-left">
+              <DialogTitle>{title}</DialogTitle>
+            </DialogHeader>
+            <div className="min-w-0 p-4">{children}</div>
+          </>
+        ) : (
+          <>
+            <DialogTitle className="sr-only">Dialog</DialogTitle>
+            <div className="min-w-0 p-4 pt-6">{children}</div>
+          </>
         )}
-
-        {/* Body */}
-        <div className="p-4">{children}</div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +33,7 @@ interface BotHomeClientProps {
 }
 
 export function BotHomeClient({ platform, bot }: BotHomeClientProps) {
+  const t = useTranslations('BotHomeClient');
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -128,7 +130,7 @@ export function BotHomeClient({ platform, bot }: BotHomeClientProps) {
         <Button
           variant={nav === 'conversations' ? 'secondary' : 'ghost'}
           size="icon"
-          aria-label="消息"
+          aria-label={t('ariaMessages')}
           className="hover:bg-neutral-100"
           onClick={() => {
             setNav('conversations');
@@ -140,7 +142,7 @@ export function BotHomeClient({ platform, bot }: BotHomeClientProps) {
         <Button
           variant={nav === 'contacts' ? 'secondary' : 'ghost'}
           size="icon"
-          aria-label="联系人"
+          aria-label={t('ariaContacts')}
           className="hover:bg-neutral-100"
           onClick={() => {
             setNav('contacts');
@@ -152,7 +154,7 @@ export function BotHomeClient({ platform, bot }: BotHomeClientProps) {
         <Button
           variant={nav === 'groups' ? 'secondary' : 'ghost'}
           size="icon"
-          aria-label="群组"
+          aria-label={t('ariaGroups')}
           className="hover:bg-neutral-100"
           onClick={() => {
             setNav('groups');
@@ -164,7 +166,7 @@ export function BotHomeClient({ platform, bot }: BotHomeClientProps) {
         <Button
           variant={nav === 'settings' ? 'secondary' : 'ghost'}
           size="icon"
-          aria-label="设置"
+          aria-label={t('ariaSettings')}
           className="hover:bg-neutral-100"
           onClick={() => setNav('settings')}
         >
@@ -176,13 +178,19 @@ export function BotHomeClient({ platform, bot }: BotHomeClientProps) {
       <Card className="overflow-y-auto shadow-sm bg-white border border-neutral-200">
         <CardHeader className="pb-2">
           <CardTitle className="text-neutral-700">
-            {nav === 'conversations' ? '会话' : nav === 'contacts' ? '联系人' : nav === 'groups' ? '群组' : '设置'}
+            {nav === 'conversations'
+              ? t('navConversations')
+              : nav === 'contacts'
+                ? t('navContacts')
+                : nav === 'groups'
+                  ? t('navGroups')
+                  : t('navSettings')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
           {nav !== 'contacts' && groups.length > 0 && (
             <div>
-              <div className="text-xs text-muted-foreground mb-1">群聊</div>
+              <div className="text-xs text-muted-foreground mb-1">{t('sectionGroupChats')}</div>
               {groups.map((g) => (
                 <Button
                   key={g.id}
@@ -197,7 +205,7 @@ export function BotHomeClient({ platform, bot }: BotHomeClientProps) {
           )}
           {nav !== 'groups' && contacts.length > 0 && (
             <div className="mt-2">
-              <div className="text-xs text-muted-foreground mb-1">联系人</div>
+              <div className="text-xs text-muted-foreground mb-1">{t('sectionContacts')}</div>
               {contacts.map((c) => (
                 <Button
                   key={c.id}
@@ -211,13 +219,13 @@ export function BotHomeClient({ platform, bot }: BotHomeClientProps) {
             </div>
           )}
           {nav === 'conversations' && groups.length === 0 && contacts.length === 0 && (
-            <div className="text-sm text-muted-foreground">暂无会话</div>
+            <div className="text-sm text-muted-foreground">{t('emptyConversations')}</div>
           )}
           {nav === 'contacts' && contacts.length === 0 && (
-            <div className="text-sm text-muted-foreground">暂无联系人</div>
+            <div className="text-sm text-muted-foreground">{t('emptyContactsList')}</div>
           )}
           {nav === 'groups' && groups.length === 0 && (
-            <div className="text-sm text-muted-foreground">暂无群组</div>
+            <div className="text-sm text-muted-foreground">{t('emptyGroupsList')}</div>
           )}
         </CardContent>
       </Card>
@@ -227,7 +235,7 @@ export function BotHomeClient({ platform, bot }: BotHomeClientProps) {
         <Card className="row-start-1 shadow-sm bg-neutral-50 border border-neutral-200">
           <CardContent className="py-2">
             <div className="flex items-center justify-between">
-              <div className="font-medium">{selected ? selected.name : '未选择会话'}</div>
+              <div className="font-medium">{selected ? selected.name : t('noChatSelected')}</div>
               <div className="text-sm text-neutral-500">{bot.name || bot.id}</div>
             </div>
           </CardContent>
@@ -236,7 +244,7 @@ export function BotHomeClient({ platform, bot }: BotHomeClientProps) {
         <Card className="row-start-2 overflow-y-auto shadow-sm bg-white border border-neutral-200">
           <CardContent className="p-4 space-y-3">
             {messages.length === 0 ? (
-              <div className="text-sm text-neutral-500">暂无消息</div>
+              <div className="text-sm text-neutral-500">{t('noMessages')}</div>
             ) : (
               messages.map((m) => {
                 const isUser = m.role === 'user';
@@ -264,20 +272,20 @@ export function BotHomeClient({ platform, bot }: BotHomeClientProps) {
         <Card className="row-start-3 shadow-sm bg-white border border-neutral-200">
           <CardContent className="py-2">
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" aria-label="表情" className="hover:bg-neutral-100">😊</Button>
-              <Button variant="ghost" size="icon" aria-label="剪刀" className="hover:bg-neutral-100">✂️</Button>
-              <Button variant="ghost" size="icon" aria-label="文件" className="hover:bg-neutral-100">📎</Button>
-              <Button variant="ghost" size="icon" aria-label="图片" className="hover:bg-neutral-100">🖼️</Button>
-              <Button variant="ghost" size="icon" aria-label="邮件" className="hover:bg-neutral-100">✉️</Button>
-              <Button variant="ghost" size="icon" aria-label="语音" className="hover:bg-neutral-100">🎤</Button>
+              <Button variant="ghost" size="icon" aria-label={t('ariaEmoji')} className="hover:bg-neutral-100">😊</Button>
+              <Button variant="ghost" size="icon" aria-label={t('ariaScissors')} className="hover:bg-neutral-100">✂️</Button>
+              <Button variant="ghost" size="icon" aria-label={t('ariaFile')} className="hover:bg-neutral-100">📎</Button>
+              <Button variant="ghost" size="icon" aria-label={t('ariaImage')} className="hover:bg-neutral-100">🖼️</Button>
+              <Button variant="ghost" size="icon" aria-label={t('ariaMail')} className="hover:bg-neutral-100">✉️</Button>
+              <Button variant="ghost" size="icon" aria-label={t('ariaVoice')} className="hover:bg-neutral-100">🎤</Button>
               <Input
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="输入要发送的消息"
+                placeholder={t('inputPlaceholder')}
                 className="flex-1 border-neutral-200 bg-white"
               />
               <Button onClick={sendMessage} disabled={loading}>
-                {loading ? '发送中...' : '发送'}
+                {loading ? t('sending') : t('send')}
               </Button>
             </div>
           </CardContent>
@@ -287,17 +295,19 @@ export function BotHomeClient({ platform, bot }: BotHomeClientProps) {
       {/* 右侧：成员/公告面板 */}
       <Card className="overflow-y-auto shadow-sm bg-white border border-neutral-200">
         <CardHeader className="pb-2 bg-neutral-50">
-          <CardTitle className="text-neutral-700">{selected?.type === 'group' ? '群聊信息' : '会话信息'}</CardTitle>
+          <CardTitle className="text-neutral-700">
+            {selected?.type === 'group' ? t('sideTitleGroup') : t('sideTitleSession')}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {selected?.type === 'group' ? (
             <div className="space-y-2">
               <div>
-                <div className="text-sm font-medium mb-1 text-neutral-700">群公告</div>
-                <div className="text-xs text-neutral-500">（示例）这是一个群公告区域。</div>
+                <div className="text-sm font-medium mb-1 text-neutral-700">{t('groupNoticeTitle')}</div>
+                <div className="text-xs text-neutral-500">{t('groupNoticeSample')}</div>
               </div>
               <div>
-                <div className="text-sm font-medium mb-1 text-neutral-700">群聊成员</div>
+                <div className="text-sm font-medium mb-1 text-neutral-700">{t('groupMembersTitle')}</div>
                 <div className="flex flex-col gap-1">
                   {groups.find((g) => g.id === selected.id)?.members?.length ? (
                     groups
@@ -308,34 +318,36 @@ export function BotHomeClient({ platform, bot }: BotHomeClientProps) {
                         </div>
                       ))
                   ) : (
-                    <div className="text-xs text-neutral-500">暂无成员</div>
+                    <div className="text-xs text-neutral-500">{t('emptyMembers')}</div>
                   )}
                 </div>
               </div>
             </div>
           ) : selected ? (
             <div>
-              <div className="text-sm text-neutral-700">联系人：{selected.name}</div>
-              <div className="text-xs text-neutral-500">（示例）这里可显示备注等信息。</div>
+              <div className="text-sm text-neutral-700">{t('contactLine', { name: selected.name })}</div>
+              <div className="text-xs text-neutral-500">{t('contactNoteSample')}</div>
             </div>
           ) : (
-            <div className="text-sm text-neutral-500">请选择会话</div>
+            <div className="text-sm text-neutral-500">{t('selectConversationHint')}</div>
           )}
 
           <div className="pt-2 border-t border-neutral-200">
             <div className="flex items-center justify-between mb-2">
-              <div className="text-sm font-medium text-neutral-700">事件日志</div>
+              <div className="text-sm font-medium text-neutral-700">{t('eventLogTitle')}</div>
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setShowLogs((v) => !v)} className="hover:bg-neutral-100">
-                  {showLogs ? '收起' : '展开'}
+                  {showLogs ? t('collapse') : t('expand')}
                 </Button>
-                <Button variant="outline" size="sm" onClick={loadLogs}>刷新</Button>
+                <Button variant="outline" size="sm" onClick={loadLogs}>
+                  {t('refresh')}
+                </Button>
               </div>
             </div>
             {showLogs && (
               <div className="space-y-2 max-h-56 overflow-y-auto">
                 {logs.length === 0 ? (
-                  <div className="text-xs text-neutral-500">暂无日志</div>
+                  <div className="text-xs text-neutral-500">{t('emptyLogs')}</div>
                 ) : (
                   logs.map((l) => (
                     <div key={l.id} className="text-xs text-neutral-700">

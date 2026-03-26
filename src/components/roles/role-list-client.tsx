@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,7 @@ export function RoleListClient({
   initialRoles,
   availablePermissions,
 }: RoleListClientProps) {
+  const t = useTranslations('Ui');
   const router = useRouter();
   const [roles, setRoles] = useState<Role[]>(initialRoles);
   const [showCreateOverlay, setShowCreateOverlay] = useState(false);
@@ -39,13 +41,17 @@ export function RoleListClient({
     return acc;
   }, {} as Record<string, Permission[]>);
 
-  const resourceLabels: Record<string, string> = {
-    adapters: '适配器',
-    bots: '机器人',
-    flows: '流程',
-    users: '用户',
-    roles: '角色',
-  };
+  const resourceLabels = useMemo(
+    () =>
+      ({
+        adapters: t('resourceAdapters'),
+        bots: t('resourceBots'),
+        flows: t('resourceFlows'),
+        users: t('resourceUsers'),
+        roles: t('resourceRoles'),
+      }) as Record<string, string>,
+    [t],
+  );
 
   const refreshRoles = async () => {
     try {
@@ -153,7 +159,7 @@ export function RoleListClient({
       <div className="flex justify-end mb-6">
         <Button onClick={() => setShowCreateOverlay(true)}>
           <Plus className="w-4 h-4 mr-2" />
-          添加角色
+          {t('addRole')}
         </Button>
       </div>
 
@@ -168,7 +174,7 @@ export function RoleListClient({
                   {role.isSystem && (
                     <Badge variant="secondary">
                       <Lock className="w-3 h-3 mr-1" />
-                      系统
+                      {t('system')}
                     </Badge>
                   )}
                 </div>
@@ -197,7 +203,7 @@ export function RoleListClient({
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-3">
-                {role.description || '无描述'}
+                {role.description || t('noDescription')}
               </p>
               <div className="flex flex-wrap gap-1">
                 {role.permissions.slice(0, 5).map((perm) => (
@@ -207,7 +213,7 @@ export function RoleListClient({
                 ))}
                 {role.permissions.length > 5 && (
                   <Badge variant="outline" className="text-xs">
-                    +{role.permissions.length - 5} 更多
+                    {t('moreCount', { count: role.permissions.length - 5 })}
                   </Badge>
                 )}
               </div>
@@ -225,34 +231,34 @@ export function RoleListClient({
           setSelectedRole(null);
           setFormData({ name: '', description: '', permissions: [] });
         }}
-        title={showEditOverlay ? '编辑角色' : '添加角色'}
+        title={showEditOverlay ? t('editRole') : t('addRole')}
         className="max-w-2xl"
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">角色名称</label>
+            <label className="block text-sm font-medium mb-1">{t('fieldRoleName')}</label>
             <Input
               value={formData.name}
               onChange={(e) =>
                 setFormData({ ...formData, name: e.target.value })
               }
-              placeholder="角色名称"
+              placeholder={t('placeholderRoleName')}
               disabled={selectedRole?.isSystem}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">描述</label>
+            <label className="block text-sm font-medium mb-1">{t('fieldRoleDescription')}</label>
             <Textarea
               value={formData.description}
               onChange={(e) =>
                 setFormData({ ...formData, description: e.target.value })
               }
-              placeholder="角色描述（可选）"
+              placeholder={t('placeholderRoleDescription')}
               disabled={selectedRole?.isSystem}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-2">权限</label>
+            <label className="block text-sm font-medium mb-2">{t('fieldPermissions')}</label>
             <div className="space-y-4 max-h-80 overflow-y-auto">
               {Object.entries(groupedPermissions).map(([resource, perms]) => (
                 <div key={resource} className="border rounded-lg p-3">
@@ -266,8 +272,8 @@ export function RoleListClient({
                       onClick={() => toggleResourceAll(resource, perms)}
                     >
                       {perms.every((p) => formData.permissions.includes(p.id))
-                        ? '取消全选'
-                        : '全选'}
+                        ? t('deselectAll')
+                        : t('selectAll')}
                     </Button>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -299,10 +305,10 @@ export function RoleListClient({
                 setFormData({ name: '', description: '', permissions: [] });
               }}
             >
-              取消
+              {t('cancel')}
             </Button>
             <Button onClick={showEditOverlay ? handleUpdate : handleCreate}>
-              {showEditOverlay ? '保存' : '创建'}
+              {showEditOverlay ? t('save') : t('create')}
             </Button>
           </div>
         </div>
@@ -312,16 +318,16 @@ export function RoleListClient({
       <Overlay
         isOpen={showDeleteOverlay}
         onClose={() => setShowDeleteOverlay(false)}
-        title="删除角色"
+        title={t('titleDeleteRole')}
       >
         <div className="space-y-4">
-          <p>确定要删除角色「{selectedRole?.name}」吗？此操作不可撤销。</p>
+          <p>{t('confirmDeleteNamed', { name: selectedRole?.name ?? '' })}</p>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={() => setShowDeleteOverlay(false)}>
-              取消
+              {t('cancel')}
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
-              删除
+              {t('delete')}
             </Button>
           </div>
         </div>

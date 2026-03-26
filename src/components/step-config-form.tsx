@@ -1,18 +1,48 @@
 'use client';
 
+import { useMessages, useTranslations } from 'next-intl';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Select } from '@/components/ui/select';
-import { FieldSchema } from '@/lib/step-schemas';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { FieldSchema } from '@/lib/steps/step-schemas';
+import { FlowTemplateVariablesHint } from '@/components/flow-template-variables-hint';
+import { stepTypeShowsFlowTemplateHint } from '@/lib/steps/step-template-variable-hint';
+import type { StepType } from '@/types';
 
 interface StepConfigFormProps {
   schema: Record<string, FieldSchema>;
   config: Record<string, any>;
   onChange: (config: Record<string, any>) => void;
+  /** 用于发送/模板类步骤时展示与 ${} 一致的可用变量说明 */
+  stepType?: StepType;
 }
 
-export function StepConfigForm({ schema, config, onChange }: StepConfigFormProps) {
+function pickStepFieldString(
+  root: Record<string, unknown> | undefined,
+  path: string[],
+): string | undefined {
+  let cur: unknown = root;
+  for (const p of path) {
+    if (cur === null || typeof cur !== 'object') return undefined;
+    cur = (cur as Record<string, unknown>)[p];
+  }
+  return typeof cur === 'string' ? cur : undefined;
+}
+
+export function StepConfigForm({ schema, config, onChange, stepType }: StepConfigFormProps) {
+  const messages = useMessages();
+  const ui = useTranslations('Ui');
+  const stepFieldsRoot = (messages as Record<string, unknown>).StepFields as
+    | Record<string, unknown>
+    | undefined;
+
   const handleFieldChange = (fieldName: string, value: any) => {
     onChange({
       ...config,
@@ -20,8 +50,27 @@ export function StepConfigForm({ schema, config, onChange }: StepConfigFormProps
     });
   };
 
+  const tr = (fieldName: string, part: 'label' | 'description' | 'placeholder', field: FieldSchema) => {
+    const fromMsg =
+      stepType && stepFieldsRoot
+        ? pickStepFieldString(stepFieldsRoot, [stepType, fieldName, part])
+        : undefined;
+    if (part === 'label') return fromMsg ?? field.label;
+    if (part === 'description') return fromMsg ?? field.description;
+    return fromMsg ?? field.placeholder;
+  };
+
+  const trOpt = (fieldName: string, value: string, fallback: string) => {
+    const fromMsg =
+      stepType && stepFieldsRoot
+        ? pickStepFieldString(stepFieldsRoot, [stepType, fieldName, 'options', value])
+        : undefined;
+    return fromMsg ?? fallback;
+  };
+
   const renderField = (fieldName: string, field: FieldSchema) => {
     const value = config[fieldName] ?? field.defaultValue ?? '';
+    const placeholder = tr(fieldName, 'placeholder', field);
 
     switch (field.type) {
       case 'text':
@@ -29,7 +78,7 @@ export function StepConfigForm({ schema, config, onChange }: StepConfigFormProps
           <Input
             value={value}
             onChange={(e) => handleFieldChange(fieldName, e.target.value)}
-            placeholder={field.placeholder}
+            placeholder={placeholder}
             required={field.required}
           />
         );
@@ -39,7 +88,7 @@ export function StepConfigForm({ schema, config, onChange }: StepConfigFormProps
           <Textarea
             value={value}
             onChange={(e) => handleFieldChange(fieldName, e.target.value)}
-            placeholder={field.placeholder}
+            placeholder={placeholder}
             rows={field.rows || 3}
             required={field.required}
           />
@@ -51,7 +100,7 @@ export function StepConfigForm({ schema, config, onChange }: StepConfigFormProps
             type="number"
             value={value}
             onChange={(e) => handleFieldChange(fieldName, parseFloat(e.target.value))}
-            placeholder={field.placeholder}
+            placeholder={placeholder}
             required={field.required}
           />
         );
@@ -64,7 +113,7 @@ export function StepConfigForm({ schema, config, onChange }: StepConfigFormProps
               onChange={(checked) => handleFieldChange(fieldName, checked)}
             />
             <span className="text-sm text-muted-foreground">
-              {value ? '是' : '否'}
+              {value ? ui('yes') : ui('no')}
             </span>
           </div>
         );
@@ -72,16 +121,22 @@ export function StepConfigForm({ schema, config, onChange }: StepConfigFormProps
       case 'select':
         return (
           <Select
-            value={value}
-            onChange={(e) => handleFieldChange(fieldName, e.target.value)}
-            required={field.required}
+            value={typeof value === 'string' ? value : ''}
+            onValueChange={(v) => handleFieldChange(fieldName, v)}
           >
-            {!field.required && <option value="">请选择...</option>}
-            {field.options?.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
+            <SelectTrigger aria-required={field.required}>
+              <SelectValue placeholder={ui('pleaseSelect')} />
+            </SelectTrigger>
+            <SelectContent>
+              {!field.required && (
+                <SelectItem value="">{ui('pleaseSelect')}</SelectItem>
+              )}
+              {field.options?.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {trOpt(fieldName, option.value, option.label)}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         );
 
@@ -94,11 +149,10 @@ export function StepConfigForm({ schema, config, onChange }: StepConfigFormProps
                 const parsed = JSON.parse(e.target.value);
                 handleFieldChange(fieldName, parsed);
               } catch {
-                // 暂存原始字符串，等用户输入完整 JSON
                 handleFieldChange(fieldName, e.target.value);
               }
             }}
-            placeholder={field.placeholder}
+            placeholder={placeholder}
             rows={field.rows || 4}
             className="font-mono text-sm"
             required={field.required}
@@ -110,16 +164,19 @@ export function StepConfigForm({ schema, config, onChange }: StepConfigFormProps
     }
   };
 
+  const showFlowHint = stepTypeShowsFlowTemplateHint(stepType);
+
   return (
     <div className="space-y-4">
+      {showFlowHint && <FlowTemplateVariablesHint />}
       {Object.entries(schema).map(([fieldName, field]) => (
         <div key={fieldName} className="space-y-2">
           <label className="text-sm font-medium">
-            {field.label}
+            {tr(fieldName, 'label', field)}
             {field.required && <span className="text-destructive ml-1">*</span>}
           </label>
-          {field.description && (
-            <p className="text-xs text-muted-foreground">{field.description}</p>
+          {tr(fieldName, 'description', field) && (
+            <p className="text-xs text-muted-foreground">{tr(fieldName, 'description', field)}</p>
           )}
           {renderField(fieldName, field)}
         </div>

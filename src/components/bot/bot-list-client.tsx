@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation';
+import { Link } from '@/i18n/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,9 +18,22 @@ interface BotListClientProps {
   platform: string;
   initialBots: BotConfig[];
   botConfigSchema?: FormUISchema;
+  /** 默认 true；为 false 时隐藏列表顶部「添加 Bot」按钮（由页面页眉等触发创建） */
+  showTopAddBar?: boolean;
+  /** 与 onCreateOverlayOpenChange 同时传入时，创建弹层由外部控制 */
+  createOverlayOpen?: boolean;
+  onCreateOverlayOpenChange?: (open: boolean) => void;
 }
 
-export function BotListClient({ platform, initialBots, botConfigSchema }: BotListClientProps) {
+export function BotListClient({
+  platform,
+  initialBots,
+  botConfigSchema,
+  showTopAddBar = true,
+  createOverlayOpen,
+  onCreateOverlayOpenChange,
+}: BotListClientProps) {
+  const t = useTranslations('Ui');
   const router = useRouter();
   
   // 根据 schema 初始化配置对象
@@ -35,7 +49,14 @@ export function BotListClient({ platform, initialBots, botConfigSchema }: BotLis
   };
 
   const [bots, setBots] = useState<BotConfig[]>(initialBots);
-  const [showCreateOverlay, setShowCreateOverlay] = useState(false);
+  const isCreateControlled =
+    createOverlayOpen !== undefined && onCreateOverlayOpenChange !== undefined;
+  const [internalCreateOpen, setInternalCreateOpen] = useState(false);
+  const showCreateOverlay = isCreateControlled ? createOverlayOpen! : internalCreateOpen;
+  const setShowCreateOverlay = (open: boolean) => {
+    if (isCreateControlled) onCreateOverlayOpenChange!(open);
+    else setInternalCreateOpen(open);
+  };
   const [showDeleteOverlay, setShowDeleteOverlay] = useState(false);
   const [selectedBot, setSelectedBot] = useState<BotConfig | null>(null);
   const [newBot, setNewBot] = useState({
@@ -107,19 +128,21 @@ export function BotListClient({ platform, initialBots, botConfigSchema }: BotLis
 
   return (
     <>
-      <div className="flex justify-end mb-6">
-        <Button onClick={() => setShowCreateOverlay(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          添加机器人
-        </Button>
-      </div>
+      {showTopAddBar ? (
+        <div className="mb-6 flex justify-end">
+          <Button type="button" onClick={() => setShowCreateOverlay(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            {t('addBot')}
+          </Button>
+        </div>
+      ) : null}
 
       {bots.length === 0 ? (
         <Card className="p-8 text-center">
-          <div className="text-muted-foreground mb-4">暂无机器人</div>
-          <Button onClick={() => setShowCreateOverlay(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            创建第一个机器人
+          <div className="text-muted-foreground mb-4">{t('emptyBots')}</div>
+          <Button type="button" onClick={() => setShowCreateOverlay(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            {t('createFirstBot')}
           </Button>
         </Card>
       ) : (
@@ -136,7 +159,7 @@ export function BotListClient({ platform, initialBots, botConfigSchema }: BotLis
                       </div>
                     </div>
                     <Badge variant={bot.enabled ? 'success' : 'secondary'}>
-                      {bot.enabled ? '已启用' : '未启用'}
+                      {bot.enabled ? t('enabled') : t('disabled')}
                     </Badge>
                   </div>
 
@@ -149,17 +172,17 @@ export function BotListClient({ platform, initialBots, botConfigSchema }: BotLis
                       variant="ghost"
                       size="icon"
                       onClick={() => copyWebhookUrl(bot.id)}
-                      title="复制 Webhook URL"
+                      title={t('copyWebhookUrl')}
                     >
                       <Copy className="w-4 h-4" />
                     </Button>
                     <Link href={`/adapter/${platform}/${bot.id}/edit`}>
-                      <Button variant="ghost" size="icon" title="编辑配置">
+                      <Button variant="ghost" size="icon" title={t('editConfig')}>
                         <Edit className="w-4 h-4" />
                       </Button>
                     </Link>
                     <Link href={`/adapter/${platform}/${bot.id}`}>
-                      <Button variant="ghost" size="icon" title="查看聊天">
+                      <Button variant="ghost" size="icon" title={t('viewChat')}>
                         📱
                       </Button>
                     </Link>
@@ -185,29 +208,25 @@ export function BotListClient({ platform, initialBots, botConfigSchema }: BotLis
       <Overlay
         isOpen={showCreateOverlay}
         onClose={() => setShowCreateOverlay(false)}
-        title="添加机器人"
+        title={t('overlayAddBot')}
       >
-        <div className="space-y-4 max-h-96 overflow-y-auto">
+        <div className="min-w-0 space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">机器人名称 *</label>
+            <label className="block text-sm font-medium mb-1">{t('botNameLabel')}</label>
             <Input
               value={newBot.name}
               onChange={(e) => setNewBot({ ...newBot, name: e.target.value })}
-              placeholder="例如：我的机器人"
+              placeholder={t('botNamePlaceholder')}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">
-              机器人 ID（可选）
-            </label>
+            <label className="block text-sm font-medium mb-1">{t('botIdOptional')}</label>
             <Input
               value={newBot.id}
               onChange={(e) => setNewBot({ ...newBot, id: e.target.value })}
-              placeholder="留空将自动生成"
+              placeholder={t('botIdAuto')}
             />
-            <p className="text-sm text-muted-foreground mt-1">
-              用于 Webhook URL 的标识符
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">{t('botIdHint')}</p>
           </div>
           {botConfigSchema?.fields?.map((field: FormField) => (
             <div key={field.name}>
@@ -230,9 +249,9 @@ export function BotListClient({ platform, initialBots, botConfigSchema }: BotLis
           ))}
           <div className="flex gap-2 justify-end pt-2">
             <Button variant="outline" onClick={() => setShowCreateOverlay(false)}>
-              取消
+              {t('cancel')}
             </Button>
-            <Button onClick={handleCreate}>创建</Button>
+            <Button onClick={handleCreate}>{t('create')}</Button>
           </div>
         </div>
       </Overlay>
@@ -241,16 +260,16 @@ export function BotListClient({ platform, initialBots, botConfigSchema }: BotLis
       <Overlay
         isOpen={showDeleteOverlay}
         onClose={() => setShowDeleteOverlay(false)}
-        title="删除机器人"
+        title={t('titleDeleteBot')}
       >
         <div className="space-y-4">
-          <p>确定要删除机器人「{selectedBot?.name}」吗？此操作不可撤销。</p>
+          <p>{t('confirmDeleteNamed', { name: selectedBot?.name ?? '' })}</p>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={() => setShowDeleteOverlay(false)}>
-              取消
+              {t('cancel')}
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
-              删除
+              {t('delete')}
             </Button>
           </div>
         </div>

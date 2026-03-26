@@ -22,6 +22,9 @@ export abstract class Bot {
   
   /** Bot 名称 */
   public readonly name: string;
+
+  /** 创建者用户 ID（用于解析 LLM Agent 等租户资源） */
+  public readonly ownerId?: string;
   
   /** Bot 配置 */
   protected config: Record<string, unknown>;
@@ -30,12 +33,14 @@ export abstract class Bot {
     id: string,
     platform: string,
     name: string,
-    config: Record<string, unknown>
+    config: Record<string, unknown>,
+    ownerId?: string
   ) {
     this.id = id;
     this.platform = platform;
     this.name = name;
     this.config = config;
+    this.ownerId = ownerId;
   }
 
   // ==================== 消息发送 ====================

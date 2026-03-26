@@ -18,7 +18,7 @@ export class DiscordBot extends Bot {
   private apiBase: string = 'https://discord.com/api/v10';
 
   constructor(config: BotConfig) {
-    super(config.id, 'discord', config.name, config.config);
+    super(config.id, 'discord', config.name, config.config, config.ownerId);
     this.token = (config.config.token as string) || '';
   }
 

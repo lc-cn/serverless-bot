@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +36,8 @@ export function AdapterConfigForm({
   initialConfig,
   configSchema,
 }: AdapterConfigFormProps) {
+  const t = useTranslations('AdapterConfigForm');
+  const tUi = useTranslations('Ui');
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState(initialName || '');
@@ -65,23 +68,23 @@ export function AdapterConfigForm({
     <div className="grid gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>适配器信息</CardTitle>
+          <CardTitle>{t('cardAdapterInfo')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">名称</label>
+            <label className="block text-sm font-medium mb-1">{t('labelName')}</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="适配器显示名称（可自定义）"
+              placeholder={t('placeholderName')}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">描述</label>
+            <label className="block text-sm font-medium mb-1">{t('labelDescription')}</label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="适配器用途或备注"
+              placeholder={t('placeholderDescription')}
             />
           </div>
         </CardContent>
@@ -89,15 +92,13 @@ export function AdapterConfigForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>基本设置</CardTitle>
+          <CardTitle>{t('cardBasic')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-medium">启用适配器</div>
-              <div className="text-sm text-muted-foreground">
-                启用后可以接收该平台的 Webhook 事件
-              </div>
+              <div className="font-medium">{t('enableTitle')}</div>
+              <div className="text-sm text-muted-foreground">{t('enableHint')}</div>
             </div>
             <Switch checked={enabled} onChange={setEnabled} />
           </div>
@@ -107,7 +108,7 @@ export function AdapterConfigForm({
       {configSchema.fields.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>适配器配置</CardTitle>
+            <CardTitle>{t('cardConfig')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {configSchema.fields.map((field) => (
@@ -145,7 +146,7 @@ export function AdapterConfigForm({
           <CardFooter>
             <Button onClick={handleSave} disabled={saving}>
               <Save className="w-4 h-4 mr-2" />
-              {saving ? '保存中...' : '保存配置'}
+              {saving ? tUi('saving') : t('saveConfig')}
             </Button>
           </CardFooter>
         </Card>

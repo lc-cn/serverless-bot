@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { Adapter, FormUISchema, AdapterFeature, WebhookResponse } from '@/core/adapter';
+import type { AdapterSetupGuideDefinition } from '@/core/adapter-setup-guide';
 import { QQBot } from './bot';
 import { BotConfig, BotEvent, MessageEvent, UserRole } from '@/types';
-import { generateId } from '@/lib/utils';
-import { QQEd25519 } from '@/lib/qq-ed25519';
+import { generateId } from '@/lib/shared/utils';
+import { QQEd25519 } from '@/lib/crypto/qq-ed25519';
 
 /**
  * QQ 机器人适配器
@@ -36,6 +37,51 @@ export class QQAdapter extends Adapter {
 
   getAdapterConfigUISchema(): FormUISchema {
     return { fields: [] };
+  }
+
+  getSetupGuide(): AdapterSetupGuideDefinition | null {
+    return {
+      namespace: 'qq',
+      sectionTitleKey: 'getCredentialsTitle',
+      steps: [
+        { titleKey: 'step1Title', border: 'green', body: { kind: 'rich', messageKey: 'step1Body' } },
+        { titleKey: 'step2Title', border: 'green', body: { kind: 'plain', messageKey: 'step2Body' } },
+        { titleKey: 'step3Title', border: 'green', body: { kind: 'rich', messageKey: 'step3Body' } },
+        {
+          titleKey: 'step4Title',
+          border: 'green',
+          body: {
+            kind: 'paragraphAndCodeBlock',
+            paragraphKey: 'step4Body',
+            codeBlockMessageKey: 'step4ExampleUrl',
+          },
+        },
+        {
+          titleKey: 'step5Title',
+          border: 'green',
+          body: {
+            kind: 'paragraphAndList',
+            paragraphKey: 'step5Body',
+            listItemKeys: ['eventC2C', 'eventGroupAt', 'eventDirect', 'eventAt'],
+          },
+        },
+      ],
+      tipKey: 'tip',
+      warns: [{ titleKey: 'warnTitle', listKeys: ['warnPassive', 'warnActive'] }],
+      usage: {
+        lines: [
+          { kind: 'lead', key: 'usage1' },
+          { kind: 'lead', key: 'usage2' },
+          { kind: 'lead', key: 'usage3' },
+          { kind: 'lead', key: 'usage4' },
+          { kind: 'field', key: 'usage4AppId' },
+          { kind: 'field', key: 'usage4Secret' },
+          { kind: 'lead', key: 'usage5' },
+          { kind: 'lead', key: 'usage6' },
+          { kind: 'lead', key: 'usage7' },
+        ],
+      },
+    };
   }
 
   getBotConfigUISchema(): FormUISchema {
@@ -169,7 +215,12 @@ export class QQAdapter extends Adapter {
    * - 签名体 = timestamp + body
    * - 使用 App Secret 派生的公钥验证
    */
-  async verifyWebhook(rawData: unknown, headers: Record<string, string>, config: Record<string, unknown>): Promise<boolean> {
+  async verifyWebhook(
+    rawData: unknown,
+    headers: Record<string, string>,
+    config: Record<string, unknown>,
+    _query?: Record<string, string>
+  ): Promise<boolean> {
     const startTime = Date.now();
     
     try {

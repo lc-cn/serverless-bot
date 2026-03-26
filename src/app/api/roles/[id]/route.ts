@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authStorage } from '@/lib/unified-storage';
-import { apiRequirePermission } from '@/lib/permissions';
+import { storage } from '@/lib/persistence';
+import { apiRequirePermission } from '@/lib/auth/permissions';
+import { writeAuditLog } from '@/lib/audit';
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   const { id } = await params;
 
   try {
-    const role = await authStorage.getRole(id);
+    const role = await storage.getRole(id);
     if (!role) {
       return NextResponse.json({ error: 'Role not found' }, { status: 404 });
     }
@@ -34,7 +35,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
 
   try {
-    const role = await authStorage.getRole(id);
+    const role = await storage.getRole(id);
     if (!role) {
       return NextResponse.json({ error: 'Role not found' }, { status: 404 });
     }
@@ -47,7 +48,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     if (description !== undefined && !role.isSystem) updates.description = description;
     if (permissions !== undefined) updates.permissions = permissions;
 
-    const updated = await authStorage.updateRole(id, updates);
+    const updated = await storage.updateRole(id, updates);
 
     return NextResponse.json({ role: updated });
   } catch (error) {
@@ -64,7 +65,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
   const { id } = await params;
 
   try {
-    const role = await authStorage.getRole(id);
+    const role = await storage.getRole(id);
     if (!role) {
       return NextResponse.json({ error: 'Role not found' }, { status: 404 });
     }
@@ -73,10 +74,18 @@ export async function DELETE(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Cannot delete system role' }, { status: 400 });
     }
 
-    const success = await authStorage.deleteRole(id);
+    const success = await storage.deleteRole(id);
     if (!success) {
       return NextResponse.json({ error: 'Failed to delete role' }, { status: 500 });
     }
+
+    void writeAuditLog({
+      actorUserId: session!.user.id,
+      action: 'role.delete',
+      entityType: 'role',
+      entityId: id,
+      request,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

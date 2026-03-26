@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authStorage } from '@/lib/unified-storage';
-import { apiRequirePermission } from '@/lib/permissions';
+import { storage } from '@/lib/persistence';
+import { apiRequirePermission } from '@/lib/auth/permissions';
+import { writeAuditLog } from '@/lib/audit';
 import { PERMISSIONS as ALL_PERMISSIONS } from '@/types/auth';
 
 // 获取所有角色
@@ -9,7 +10,7 @@ export async function GET() {
   if (error) return error;
 
   try {
-    const roles = await authStorage.getRoles();
+    const roles = await storage.getRoles();
 
     return NextResponse.json({
       roles,
@@ -34,11 +35,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
-    const role = await authStorage.createRole({
+    const role = await storage.createRole({
       name,
       description,
       permissions: permissions || [],
       isSystem: false,
+    });
+
+    void writeAuditLog({
+      actorUserId: session!.user.id,
+      action: 'role.create',
+      entityType: 'role',
+      entityId: role.id,
+      payload: { name: role.name },
+      request,
     });
 
     return NextResponse.json({ role });
