@@ -86,7 +86,7 @@
 
 未配置任一可用主库时：读查询多返回空、写入不落库（仅适合无面板调试）。
 
-SQLite 增量迁移在 `migrations/*.sql`；MySQL 使用 `migrations/mysql/` 下脚本。另有 `src/lib/database/ensure-owner-schema.ts` 仅用于 **libsql / node:sqlite** 旧库补列。
+SQLite 迁移在 `migrations/*.sql`（当前主要为 `001_initial.sql`），**面向空库首次执行**；若线上库结构已落后于仓库，请清空后重建 Turso 库或自行导出数据后换库，勿指望迁移内包含对极旧表的逐列 `ALTER`。MySQL 使用 `migrations/mysql/`。另有 `ensure-owner-schema.ts` 仅补 **owner 相关**旧列。
 
 ---
 
