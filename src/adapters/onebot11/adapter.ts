@@ -2,7 +2,17 @@ import { z } from 'zod';
 import { Adapter, FormUISchema, AdapterFeature } from '@/core/adapter';
 import type { AdapterSetupGuideDefinition } from '@/core/adapter-setup-guide';
 import { OneBot11Bot } from './bot';
-import { BotConfig, BotEvent, Message, MessageEvent, UserRole } from '@/types';
+import {
+  BotConfig,
+  BotEvent,
+  Message,
+  MessageEvent,
+  NoticeEvent,
+  RequestEvent,
+  NoticeEventSubType,
+  RequestEventSubType,
+  UserRole,
+} from '@/types';
 import { generateId } from '@/lib/shared/utils';
 
 function headerGet(headers: Record<string, string>, name: string): string | undefined {
@@ -19,10 +29,16 @@ interface OneBot11MessagePayload {
   self_id?: number;
   post_type?: string;
   message_type?: string;
+  notice_type?: string;
+  request_type?: string;
   sub_type?: string;
   message_id?: number;
   user_id?: number;
   group_id?: number;
+  operator_id?: number;
+  target_id?: number;
+  comment?: string;
+  flag?: string;
   sender?: {
     user_id?: number;
     nickname?: string;
@@ -130,6 +146,12 @@ export class OneBot11Adapter extends Adapter {
     if (p.post_type === 'meta_event') {
       return null;
     }
+    if (p.post_type === 'notice') {
+      return this.parseNoticeEvent(botId, p);
+    }
+    if (p.post_type === 'request') {
+      return this.parseRequestEvent(botId, p);
+    }
     if (p.post_type !== 'message') {
       return null;
     }
@@ -165,6 +187,91 @@ export class OneBot11Adapter extends Adapter {
       messageId,
       raw: p,
     } satisfies MessageEvent;
+  }
+
+  private mapNoticeSubType(noticeType?: string, subType?: string): NoticeEventSubType {
+    switch (noticeType) {
+      case 'group_increase':
+        return 'group_member_increase';
+      case 'group_decrease':
+        return 'group_member_decrease';
+      case 'group_admin':
+        return 'group_admin_change';
+      case 'group_ban':
+      case 'group_unban':
+        return 'group_ban';
+      case 'friend_add':
+        return 'friend_add';
+      case 'notify':
+        if (subType === 'poke') return 'poke';
+        return 'custom';
+      default:
+        return 'custom';
+    }
+  }
+
+  private parseNoticeEvent(botId: string, p: OneBot11MessagePayload): NoticeEvent | null {
+    const uid = p.user_id ?? p.operator_id ?? p.self_id;
+    if (uid == null) {
+      return null;
+    }
+    const ts = (p.time != null ? p.time * 1000 : Date.now()) as number;
+    const subType = this.mapNoticeSubType(p.notice_type, p.sub_type);
+    return {
+      id: generateId(),
+      type: 'notice',
+      subType,
+      platform: 'onebot11',
+      botId,
+      timestamp: ts,
+      sender: {
+        userId: String(uid),
+        nickname: p.sender?.nickname || p.sender?.card,
+        role: this.mapSenderRole(p.sender?.role),
+      },
+      groupId: p.group_id != null ? String(p.group_id) : undefined,
+      operatorId: p.operator_id != null ? String(p.operator_id) : undefined,
+      targetId: p.target_id != null ? String(p.target_id) : undefined,
+      extra: {
+        notice_type: p.notice_type,
+        sub_type: p.sub_type,
+      },
+      raw: p,
+    } satisfies NoticeEvent;
+  }
+
+  private parseRequestEvent(botId: string, p: OneBot11MessagePayload): RequestEvent | null {
+    const rt = p.request_type;
+    if (rt !== 'friend' && rt !== 'group') {
+      return null;
+    }
+    let subType: RequestEventSubType = 'friend';
+    if (rt === 'group') {
+      if (p.sub_type === 'add') subType = 'group_join';
+      else subType = 'group_invite';
+    }
+    const uid = p.user_id;
+    if (uid == null) {
+      return null;
+    }
+    const ts = (p.time != null ? p.time * 1000 : Date.now()) as number;
+    return {
+      id: generateId(),
+      type: 'request',
+      subType,
+      platform: 'onebot11',
+      botId,
+      timestamp: ts,
+      sender: {
+        userId: String(uid),
+        nickname: p.sender?.nickname || p.sender?.card,
+        role: this.mapSenderRole(p.sender?.role),
+      },
+      comment: p.comment,
+      flag: String(p.flag ?? ''),
+      groupId: p.group_id != null ? String(p.group_id) : undefined,
+      raw: p,
+    } satisfies RequestEvent;
   }
 
   private mapSenderRole(r?: string): UserRole {
@@ -236,6 +343,6 @@ export class OneBot11Adapter extends Adapter {
   }
 
   getSupportedFeatures(): AdapterFeature[] {
-    return ['message', 'group', 'user'];
+    return ['message', 'group', 'user', 'notice', 'request'];
   }
 }

@@ -2,7 +2,15 @@ import { z } from 'zod';
 import { Adapter, FormUISchema, AdapterFeature, WebhookResponse } from '@/core/adapter';
 import type { AdapterSetupGuideDefinition } from '@/core/adapter-setup-guide';
 import { QQBot } from './bot';
-import { BotConfig, BotEvent, MessageEvent, UserRole } from '@/types';
+import {
+  BotConfig,
+  BotEvent,
+  Message,
+  MessageEvent,
+  NoticeEvent,
+  NoticeEventSubType,
+  UserRole,
+} from '@/types';
 import { generateId } from '@/lib/shared/utils';
 import { QQEd25519 } from '@/lib/crypto/qq-ed25519';
 
@@ -141,22 +149,338 @@ export class QQAdapter extends Adapter {
   }
 
   private parseDispatchEvent(botId: string, eventType: string, data: any, payload: any): BotEvent | null {
-    // 消息事件类型映射
     const messageEvents = [
-      'C2C_MESSAGE_CREATE',       // 单聊消息
-      'GROUP_AT_MESSAGE_CREATE',  // 群聊@机器人消息
-      'AT_MESSAGE_CREATE',        // 频道@机器人消息
-      'MESSAGE_CREATE',           // 频道消息（私域）
-      'DIRECT_MESSAGE_CREATE',    // 频道私信
+      'C2C_MESSAGE_CREATE',
+      'GROUP_AT_MESSAGE_CREATE',
+      'AT_MESSAGE_CREATE',
+      'MESSAGE_CREATE',
+      'DIRECT_MESSAGE_CREATE',
     ];
 
     if (messageEvents.includes(eventType)) {
       return this.parseMessageEvent(botId, eventType, data, payload);
     }
 
-    // 其他事件暂不处理（可扩展）
+    const groupRobotEvents = [
+      'GROUP_ADD_ROBOT',
+      'GROUP_DEL_ROBOT',
+      'GROUP_MSG_REJECT',
+      'GROUP_MSG_RECEIVE',
+    ];
+    if (groupRobotEvents.includes(eventType)) {
+      return this.parseGroupRobotNotice(botId, eventType, data, payload);
+    }
+
+    const guildMemberEvents = ['GUILD_MEMBER_ADD', 'GUILD_MEMBER_REMOVE'];
+    if (guildMemberEvents.includes(eventType)) {
+      return this.parseGuildMemberNotice(botId, eventType, data, payload);
+    }
+
+    if (eventType === 'INTERACTION_CREATE') {
+      return this.parseInteractionCreate(botId, data, payload);
+    }
+
+    const messageDeleteEvents = ['MESSAGE_DELETE', 'PUBLIC_MESSAGE_DELETE', 'DIRECT_MESSAGE_DELETE'];
+    if (messageDeleteEvents.includes(eventType)) {
+      return this.parseMessageDeleteNotice(botId, eventType, data, payload);
+    }
+
+    const reactionEvents = ['MESSAGE_REACTION_ADD', 'MESSAGE_REACTION_REMOVE'];
+    if (reactionEvents.includes(eventType)) {
+      return this.parseMessageReactionNotice(botId, eventType, data, payload);
+    }
+
+    if (eventType === 'GUILD_MEMBER_UPDATE') {
+      return this.parseGuildMemberUpdateNotice(botId, data, payload);
+    }
+
+    const auditEvents = ['MESSAGE_AUDIT_PASS', 'MESSAGE_AUDIT_REJECT'];
+    if (auditEvents.includes(eventType)) {
+      return this.parseMessageAuditNotice(botId, eventType, data, payload);
+    }
+
     console.log(`[QQ] Unhandled event type: ${eventType}`);
     return null;
+  }
+
+  private qqTimestampMs(data: { timestamp?: string | number }): number {
+    const ts = data.timestamp;
+    if (typeof ts === 'number') {
+      return ts < 1e12 ? ts * 1000 : ts;
+    }
+    if (typeof ts === 'string') {
+      const parsed = Date.parse(ts);
+      if (!Number.isNaN(parsed)) return parsed;
+    }
+    return Date.now();
+  }
+
+  private attachmentsToSegments(attachments: unknown): { segments: Message; hints: string[] } {
+    const segments: Message = [];
+    const hints: string[] = [];
+    if (!Array.isArray(attachments)) return { segments, hints };
+    for (const raw of attachments) {
+      if (!raw || typeof raw !== 'object') continue;
+      const a = raw as {
+        content_type?: string;
+        url?: string;
+        voice_wav_url?: string;
+        filename?: string;
+        asr_refer_text?: string;
+      };
+      const ct = (a.content_type || '').toLowerCase();
+      const url = a.url || a.voice_wav_url;
+      const asr = a.asr_refer_text != null ? String(a.asr_refer_text) : '';
+      if (ct.startsWith('image/') && url) {
+        segments.push({ type: 'image', data: { url } });
+        hints.push('[图片]');
+      } else if (ct === 'file' || ct.includes('octet-stream')) {
+        if (url) segments.push({ type: 'file', data: { url, file_name: a.filename } });
+        hints.push(a.filename ? `[文件:${a.filename}]` : '[文件]');
+      } else if (ct.includes('video')) {
+        if (url) segments.push({ type: 'video', data: { url } });
+        hints.push(asr || '[视频]');
+      } else if (ct === 'voice' || ct.includes('audio') || ct.includes('voice')) {
+        if (url) segments.push({ type: 'audio', data: { url } });
+        hints.push(asr || '[语音]');
+      } else if (url) {
+        segments.push({ type: 'file', data: { url, file_name: a.filename } });
+        hints.push(a.filename ? `[附件:${a.filename}]` : '[附件]');
+      }
+    }
+    return { segments, hints };
+  }
+
+  private parseGroupRobotNotice(
+    botId: string,
+    eventType: string,
+    data: {
+      timestamp?: number;
+      group_openid?: string;
+      op_member_openid?: string;
+    },
+    payload: any,
+  ): NoticeEvent {
+    const subTypeMap: Partial<Record<string, NoticeEventSubType>> = {
+      GROUP_ADD_ROBOT: 'group_member_increase',
+      GROUP_DEL_ROBOT: 'group_member_decrease',
+      GROUP_MSG_REJECT: 'custom',
+      GROUP_MSG_RECEIVE: 'custom',
+    };
+    const subType = subTypeMap[eventType] ?? 'custom';
+    const ts =
+      typeof data.timestamp === 'number'
+        ? data.timestamp < 1e12
+          ? data.timestamp * 1000
+          : data.timestamp
+        : Date.now();
+
+    return {
+      id: generateId(),
+      type: 'notice',
+      subType,
+      platform: 'qq',
+      botId,
+      timestamp: ts,
+      sender: {
+        userId: String(data.op_member_openid || ''),
+        nickname: undefined,
+        role: 'normal',
+      },
+      groupId: data.group_openid,
+      operatorId: data.op_member_openid,
+      extra: {
+        event_type: eventType,
+        matchContent: eventType,
+      },
+      raw: payload,
+    } satisfies NoticeEvent;
+  }
+
+  /** 频道/私信消息撤回或删除（私域 MESSAGE_DELETE、公域 PUBLIC_MESSAGE_DELETE、私信 DIRECT_MESSAGE_DELETE） */
+  private parseMessageDeleteNotice(botId: string, eventType: string, data: any, payload: any): NoticeEvent {
+    const ts = this.qqTimestampMs(data);
+    const msgId = data.id ?? data.message_id ?? data.message?.id ?? '';
+    const channelId = data.channel_id ?? data.sub_channel_id ?? data.message?.channel_id;
+    const guildId = data.guild_id ?? data.message?.guild_id;
+    const author = data.author ?? data.message?.author ?? {};
+    const userId = author.id ?? author.user_openid ?? author.member_openid ?? '';
+
+    return {
+      id: generateId(),
+      type: 'notice',
+      subType: 'custom',
+      platform: 'qq',
+      botId,
+      timestamp: ts,
+      sender: { userId: String(userId), nickname: author.username || author?.nick, role: 'normal' },
+      groupId: guildId != null ? String(guildId) : channelId != null ? String(channelId) : undefined,
+      extra: {
+        event_type: eventType,
+        matchContent: eventType,
+        message_id: msgId,
+        channel_id: channelId,
+      },
+      raw: payload,
+    } satisfies NoticeEvent;
+  }
+
+  private parseMessageReactionNotice(botId: string, eventType: string, data: any, payload: any): NoticeEvent {
+    const ts = this.qqTimestampMs(data);
+    const channelId = data.channel_id ?? data.target?.channel_id;
+    const guildId = data.guild_id ?? data.target?.guild_id;
+    const msgId =
+      data.message_id ?? data.target?.id ?? data.target?.message_id ?? data.target?.message?.id ?? '';
+    const user = data.user ?? data.member?.user ?? {};
+    const userId = user.id ?? user.member_openid ?? '';
+    const emojiRaw = data.emoji ?? data.reaction?.emoji;
+    const emojiLabel =
+      typeof emojiRaw === 'string'
+        ? emojiRaw
+        : emojiRaw && typeof emojiRaw === 'object'
+          ? String(
+              (emojiRaw as { name?: string; id?: string; type?: number }).name ||
+                (emojiRaw as { id?: string }).id ||
+                '',
+            )
+          : '';
+
+    return {
+      id: generateId(),
+      type: 'notice',
+      subType: 'custom',
+      platform: 'qq',
+      botId,
+      timestamp: ts,
+      sender: { userId: String(userId), nickname: user.username, role: 'normal' },
+      groupId: guildId != null ? String(guildId) : channelId != null ? String(channelId) : undefined,
+      extra: {
+        event_type: eventType,
+        matchContent: eventType,
+        message_id: msgId,
+        channel_id: channelId,
+        emoji: emojiLabel || emojiRaw,
+        action: eventType === 'MESSAGE_REACTION_ADD' ? 'add' : 'remove',
+      },
+      raw: payload,
+    } satisfies NoticeEvent;
+  }
+
+  private parseGuildMemberUpdateNotice(botId: string, data: any, payload: any): NoticeEvent {
+    const ts = this.qqTimestampMs(data);
+    const uid =
+      data.user?.id ?? data.member?.user?.id ?? data.member?.user?.member_openid ?? data.member_openid ?? '';
+
+    return {
+      id: generateId(),
+      type: 'notice',
+      subType: 'custom',
+      platform: 'qq',
+      botId,
+      timestamp: ts,
+      sender: {
+        userId: String(uid),
+        nickname: data.member?.user?.username || data.user?.username,
+        role: 'normal',
+      },
+      groupId: data.guild_id != null ? String(data.guild_id) : undefined,
+      extra: { event_type: 'GUILD_MEMBER_UPDATE', matchContent: 'GUILD_MEMBER_UPDATE' },
+      raw: payload,
+    } satisfies NoticeEvent;
+  }
+
+  private parseMessageAuditNotice(botId: string, eventType: string, data: any, payload: any): NoticeEvent {
+    const ts = this.qqTimestampMs(data);
+    const guildId = data.guild_id;
+    const channelId = data.channel_id;
+    const author = data.author ?? data.message?.author ?? {};
+    const userId = author.id ?? author.user_openid ?? '';
+
+    return {
+      id: generateId(),
+      type: 'notice',
+      subType: 'custom',
+      platform: 'qq',
+      botId,
+      timestamp: ts,
+      sender: { userId: String(userId), role: 'normal' as UserRole },
+      groupId: guildId != null ? String(guildId) : channelId != null ? String(channelId) : undefined,
+      extra: {
+        event_type: eventType,
+        matchContent: eventType,
+        message_id: data.message_id ?? data.message?.id,
+        audit_result: eventType === 'MESSAGE_AUDIT_PASS' ? 'pass' : 'reject',
+      },
+      raw: payload,
+    } satisfies NoticeEvent;
+  }
+
+  private parseGuildMemberNotice(botId: string, eventType: string, data: any, payload: any): NoticeEvent {
+    const subType: NoticeEventSubType =
+      eventType === 'GUILD_MEMBER_ADD' ? 'group_member_increase' : 'group_member_decrease';
+    const uid =
+      data.user?.id ||
+      data.member?.user?.id ||
+      data.member?.user?.member_openid ||
+      data.member_openid ||
+      '';
+    const opId = data.op_user_id || data.operator_id || data.inviter_id;
+    const ts = this.qqTimestampMs(data);
+
+    return {
+      id: generateId(),
+      type: 'notice',
+      subType,
+      platform: 'qq',
+      botId,
+      timestamp: ts,
+      sender: {
+        userId: String(uid),
+        nickname: data.member?.user?.username || data.user?.username,
+        role: 'normal',
+      },
+      groupId: data.guild_id ? String(data.guild_id) : data.channel_id ? String(data.channel_id) : undefined,
+      operatorId: opId != null ? String(opId) : undefined,
+      targetId: data.user?.id != null ? String(data.user.id) : undefined,
+      extra: { event_type: eventType, matchContent: eventType },
+      raw: payload,
+    } satisfies NoticeEvent;
+  }
+
+  private parseInteractionCreate(botId: string, data: any, payload: any): MessageEvent {
+    const isGroup = !!data.guild_id;
+    const cmdName =
+      data.data?.name ||
+      data.application_command?.name ||
+      data.data?.resolved?.name ||
+      '';
+    const rawContent = cmdName ? `/${cmdName}`.trim() : 'INTERACTION_CREATE';
+    const ts = this.qqTimestampMs(data);
+    const userId =
+      data.member?.user?.id ||
+      data.user?.id ||
+      data.channel?.user_id ||
+      '';
+    const nickname = data.member?.user?.username || data.user?.username || '';
+
+    return {
+      id: generateId(),
+      type: 'message',
+      subType: isGroup ? 'group' : 'private',
+      platform: 'qq',
+      botId,
+      timestamp: ts,
+      sender: {
+        userId: String(userId),
+        nickname,
+        role: 'normal' as UserRole,
+      },
+      content: [{ type: 'text', data: { text: rawContent } }],
+      rawContent,
+      groupId: isGroup ? data.guild_id || data.channel_id : undefined,
+      messageId: String(data.id || data.token || generateId()),
+      raw: payload,
+    };
   }
 
   private parseMessageEvent(botId: string, eventType: string, data: any, payload: any): MessageEvent {
@@ -176,12 +500,19 @@ export class QQAdapter extends Adapter {
       subType = 'private';
     }
 
-    // 提取消息内容
-    const content = data.content || '';
-    const messageId = data.id;
-    const timestamp = data.timestamp ? new Date(data.timestamp).getTime() : Date.now();
+    const text = typeof data.content === 'string' ? data.content : '';
+    const { segments, hints } = this.attachmentsToSegments(data.attachments);
+    const parts: Message = [];
+    if (text.trim()) parts.push({ type: 'text', data: { text } });
+    parts.push(...segments);
+    const rawContent = [text.trim(), ...hints.filter((h) => h && h !== text.trim())]
+      .filter(Boolean)
+      .join('\n')
+      .trim();
 
-    // 发送者信息
+    const messageId = data.id;
+    const timestamp = this.qqTimestampMs(data);
+
     const author = data.author || {};
     const member = data.member || {};
 
@@ -193,12 +524,12 @@ export class QQAdapter extends Adapter {
       botId,
       timestamp,
       sender: {
-        userId: author.id || author.user_openid || data.author?.member_openid || '',
+        userId: author.id || author.user_openid || author.member_openid || '',
         nickname: member.nick || author.username || '',
         role: 'normal' as UserRole,
       },
-      content: [{ type: 'text', data: { text: content } }],
-      rawContent: content,
+      content: parts.length ? parts : text ? [{ type: 'text', data: { text } }] : [],
+      rawContent: rawContent || text,
       groupId,
       messageId,
       raw: payload,
@@ -317,6 +648,6 @@ export class QQAdapter extends Adapter {
   }
 
   getSupportedFeatures(): AdapterFeature[] {
-    return ['message', 'group', 'user'];
+    return ['message', 'group', 'user', 'notice', 'file', 'recall', 'reaction'];
   }
 }

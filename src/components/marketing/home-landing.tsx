@@ -143,17 +143,13 @@ export async function HomeLanding({
                 </Button>
                 {registrationEnabled && (
                   <Button asChild size="sm" className="shadow-surface-sm">
-                    <Link href="/sign-up">
-                      <span className="hidden sm:inline">{t('ctaSignUp')}</span>
-                    </Link>
+                    <Link href="/sign-up">{t('ctaSignUp')}</Link>
                   </Button>
                 )}
               </>
             ) : (
               <Button asChild size="sm" variant="secondary">
-                <Link href="/dashboard">
-                  <span className="hidden sm:inline">{t('ctaDashboard')}</span>
-                </Link>
+                <Link href="/dashboard">{t('ctaDashboard')}</Link>
               </Button>
             )}
           </div>

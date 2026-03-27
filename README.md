@@ -169,8 +169,8 @@ POST https://your-domain.com/api/webhook/telegram/my-bot-123
 
 | 变量名 | 描述 | 必需 |
 |--------|------|------|
-| `LIBSQL_URL` / `LIBSQL_AUTH_TOKEN` | 主库 libSQL；本地可用 `file:./db.sqlite` | 生产建议 |
-| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST | 否 |
+| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN`（首选）或 `LIBSQL_*` | 主库 libSQL / Turso；本地可用 `file:./db.sqlite` | 生产建议 |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN`（首选）或 `UPSTASH_REDIS_REST_*` | Vercel KV / Upstash REST | 否 |
 | `KV_BACKEND=memory` | 强制内存 KV（不连 Redis） | 否 |
 | `NEXTAUTH_URL` / `NEXTAUTH_SECRET` | 登录与公网根 URL、会话 | 是 |
 

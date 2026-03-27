@@ -143,11 +143,20 @@ function clone<T>(v: T): T {
   return v !== null && typeof v === 'object' ? (JSON.parse(JSON.stringify(v)) as T) : v;
 }
 
-/** 仅认 Upstash 控制台给出的 REST 变量名。 */
+/**
+ * Redis REST（Upstash 协议）：与 Vercel KV / Marketplace 对齐。
+ * 优先级：`KV_REST_API_URL` + `KV_REST_API_TOKEN`（写令牌），其次 `UPSTASH_REDIS_REST_*`。
+ * 不使用 `KV_REST_API_READ_ONLY_TOKEN`（只读）。
+ */
 export function resolveKvRestConfig(): { url: string; token: string } | null {
-  const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
-  if (url && token) return { url, token };
+  const kvUrl = process.env.KV_REST_API_URL?.trim();
+  const kvToken = process.env.KV_REST_API_TOKEN?.trim();
+  if (kvUrl && kvToken) return { url: kvUrl, token: kvToken };
+
+  const upUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const upToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  if (upUrl && upToken) return { url: upUrl, token: upToken };
+
   return null;
 }
 
@@ -345,7 +354,9 @@ export function getKvRedis(): KvRedisLike {
     _kv = new MemoryKvRedis();
     _backend = 'memory';
     if (process.env.NODE_ENV === 'development' && !forceMemory) {
-      console.info('[KV] 使用内存后端（未配置 UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN）。聊天/日志重启后丢失。');
+      console.info(
+        '[KV] 使用内存后端（未配置 KV_REST_API_URL + KV_REST_API_TOKEN，亦无 UPSTASH_REDIS_REST_*）。聊天/日志重启后丢失。',
+      );
     }
   }
 

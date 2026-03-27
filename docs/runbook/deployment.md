@@ -4,7 +4,7 @@
 
 | 场景 | 建议 |
 |------|------|
-| **Vercel / Serverless 生产** | **libSQL（如 Turso）**：`LIBSQL_URL` + `LIBSQL_AUTH_TOKEN`；**Upstash Redis** 作 KV；可选 `WEBHOOK_FLOW_ASYNC` + Cron 调 worker |
+| **Vercel / Serverless 生产** | **Turso**：`TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN`；**Vercel KV**：`KV_REST_API_URL` + `KV_REST_API_TOKEN`；可选 `WEBHOOK_FLOW_ASYNC` + Cron 调 worker |
 | **本机 / Docker** | **Node 22.5+** + `DATABASE_ENGINE=nodejs-sqlite` 与 `SQLITE_PATH`；或 `file:` libSQL |
 
 **MySQL**（`DATABASE_ENGINE=mysql`）保留为次要路径，需单独维护 `migrations/mysql/`，与默认 `migrations/*.sql` 链路等价物需自建对照。
@@ -31,7 +31,7 @@
 | 层级 | 技术 | 用途 |
 |------|------|------|
 | **主库（SQL）** | **可选引擎**（见下） | 用户、RBAC、Flow/Job/Trigger、Bot 配置、聊天落库等 |
-| **缓存（可选）** | **Redis over HTTP**（`@upstash/redis`，Upstash 兼容 REST） | 聊天列表缓存、联系人/群列表缓存、Webhook 事件日志 |
+| **缓存（可选）** | **Redis over HTTP**（`@upstash/redis`；优先 `KV_REST_API_*`，与 Vercel KV 一致） | 聊天列表缓存、联系人/群列表缓存、Webhook 事件日志 |
 
 ---
 
@@ -41,7 +41,7 @@
    - **`no_database` / `needs_install`** → 重定向到 **`/install`**（首次：配库、可选同步 Vercel、一键建表 + RBAC）。
    - **`needs_upgrade`** → 重定向到 **`/upgrade`**（实例已在跑，仅磁盘上 **`migrations/*.sql`** 有未应用版本时）。
    - **`installed`** → 正常应用；Webhook、Auth、安装 API 等白名单路径不受挡。
-2. **`/install`**：填写 **libSQL（Turso）** 或 **本地 `node:sqlite` 路径**，生成 `NEXTAUTH_*` / 可选 Redis；可复制环境变量到托管控制台。  
+2. **`/install`**：填写 **`TURSO_*`**（或本地 `node:sqlite` 路径），生成 `NEXTAUTH_*` / 可选 **`KV_REST_API_*`**；可复制环境变量到托管控制台。  
 3. **Vercel**：可填写 Personal Token + Project ID，使用「同步环境变量到 Vercel」后 **必须重新部署**，再执行「数据库一键安装」。  
 4. **`/install` 与 `/upgrade`** 均通过 **`POST /api/install/complete`** 执行迁移 + RBAC 校验；会对 **`migrations/*.sql`**（不含 `mysql/`）按文件名顺序应用：**已记录在表 `schema_migrations` 的版本会跳过**；遇非预期错误则中止。`GET /api/install/status` 返回 **`phase`** 与 **`lastAppliedMigration`**。  
 5. **`INSTALL_SECRET`（生产必填）**：`POST /api/install/complete`、`POST /api/install/vercel-env` 在生产环境**必须**配置，且请求头 **`x-install-secret`** 与之相同；开发环境可不配。  
@@ -60,8 +60,8 @@
 
 ### 1. libSQL（Turso / 自建 sqld / `file:`）
 
-- `LIBSQL_URL`  
-- 非 `file:` 时：`LIBSQL_AUTH_TOKEN`  
+- **首选**：`TURSO_DATABASE_URL`、`TURSO_AUTH_TOKEN`（Vercel Turso 集成默认）  
+- **次选**：`LIBSQL_URL`、`LIBSQL_AUTH_TOKEN`（仅当未设置 `TURSO_DATABASE_URL` 时使用 URL；Token 两组可交叉后备）  
 - 本地文件示例：`file:./relative/path.db`（可不配 token）
 
 ### 2. 本地 SQLite（Node.js 自带 `node:sqlite`）
@@ -69,7 +69,7 @@
 - 需 **Node.js ≥ 22.5**（仓库 `package.json` 中 `engines.node`）
 - 推荐显式：`DATABASE_ENGINE=nodejs-sqlite`
 - 路径：仅 **`SQLITE_PATH`**（可写 `file:./data.db`，会去掉 `file:` 前缀）
-- **不要**同时配置可用的 `LIBSQL_URL`，否则推断会走 libsql（见下「优先级」）
+- **不要**同时配置可用的 `LIBSQL_URL` / `TURSO_DATABASE_URL`，否则推断会走 libsql（见下「优先级」）
 
 ### 3. MySQL 8.x（可选，非默认）
 
@@ -80,8 +80,8 @@
 
 ### 优先级（未设置 `DATABASE_ENGINE` 时）
 
-1. 若配置了 `SQLITE_PATH` **且未**配置 `LIBSQL_URL` → **node:sqlite**  
-2. 否则 → **libsql**（依赖 URL/token，见 `resolvePrimarySqlConfig`）  
+1. 若配置了 `SQLITE_PATH` **且未**配置 `LIBSQL_URL` / `TURSO_DATABASE_URL` → **node:sqlite**  
+2. 否则 → **libsql**（依赖 URL/token，见 `resolvePrimarySqlConfig` / `pickLibsqlFromEnv`）  
 3. **MySQL** 仅在显式 `DATABASE_ENGINE=mysql` 且配好 `MYSQL_USER` / `MYSQL_DATABASE` 时启用（默认部署以 SQLite / libSQL 为主）
 
 未配置任一可用主库时：读查询多返回空、写入不落库（仅适合无面板调试）。
@@ -92,11 +92,12 @@ SQLite 增量迁移在 `migrations/*.sql`；MySQL 使用 `migrations/mysql/` 下
 
 ## 缓存（Redis REST）
 
-聊天与日志使用 **Upstash 定义的 HTTP API**，依赖 **`@upstash/redis`**（不再依赖 `@vercel/kv`）。
+聊天与日志使用 **`@upstash/redis`**（HTTP REST，与 Vercel KV / Upstash 一致）。
 
-- 在 [Upstash Console](https://console.upstash.com) 创建 Redis，仅此一组变量：**`UPSTASH_REDIS_REST_URL`**、**`UPSTASH_REDIS_REST_TOKEN`**。
+- **首选（与 Vercel 控制台一致）**：**`KV_REST_API_URL`**、**`KV_REST_API_TOKEN`**（须读写 Token，勿用只读 Token）。  
+- **次选**：[Upstash Console](https://console.upstash.com) 的 **`UPSTASH_REDIS_REST_URL`**、**`UPSTASH_REDIS_REST_TOKEN`**。
 
-未配置二者或 **`KV_BACKEND=memory`**：使用**进程内内存**缓存（重启丢失）。
+未配置可用的 URL+Token 或 **`KV_BACKEND=memory`**：使用**进程内内存**缓存（重启丢失）。
 
 ### ChatStore（Hybrid）：SQL 与 KV 谁主谁备
 

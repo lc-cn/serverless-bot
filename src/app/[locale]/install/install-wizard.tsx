@@ -20,7 +20,19 @@ function randomBase64Url(length: number): string {
   return s;
 }
 
-export function InstallWizard({ initialPhase }: { initialPhase: InstallPhase }) {
+type LibsqlEnvInfo = {
+  binding: 'libsql' | 'turso' | null;
+  tokenPresent: boolean;
+  canConnect: boolean;
+};
+
+export function InstallWizard({
+  initialPhase,
+  initialLibsqlEnv,
+}: {
+  initialPhase: InstallPhase;
+  initialLibsqlEnv?: LibsqlEnvInfo;
+}) {
   const t = useTranslations('InstallWizard');
   const router = useRouter();
   const [phase, setPhase] = useState<InstallPhase>(initialPhase);
@@ -28,6 +40,7 @@ export function InstallWizard({ initialPhase }: { initialPhase: InstallPhase }) 
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [libsqlEnv, setLibsqlEnv] = useState<LibsqlEnvInfo | null>(() => initialLibsqlEnv ?? null);
 
   const [nextAuthUrl, setNextAuthUrl] = useState('');
   const [nextAuthSecret, setNextAuthSecret] = useState('');
@@ -49,6 +62,13 @@ export function InstallWizard({ initialPhase }: { initialPhase: InstallPhase }) 
     const r = await fetch('/api/install/status', { cache: 'no-store' });
     const d = await r.json();
     const p = d.phase as InstallPhase | undefined;
+    setLibsqlEnv(
+      (d.libsqlEnv as LibsqlEnvInfo | undefined) ?? {
+        binding: null,
+        tokenPresent: false,
+        canConnect: Boolean(d.databaseConfigured),
+      },
+    );
     if (p === 'needs_upgrade') {
       router.replace('/upgrade');
       return;
@@ -68,21 +88,40 @@ export function InstallWizard({ initialPhase }: { initialPhase: InstallPhase }) 
     return h;
   }, [installSecret]);
 
+  const dbFromPlatform = Boolean(libsqlEnv?.binding);
+
   const envBlock = useMemo(() => {
     const lines: string[] = [];
-    if (useRemoteLibsql && libsqlUrl.trim()) {
-      lines.push(`LIBSQL_URL=${libsqlUrl.trim()}`);
-      if (libsqlToken.trim()) lines.push(`LIBSQL_AUTH_TOKEN=${libsqlToken.trim()}`);
+    if (dbFromPlatform) {
+      lines.push(
+        libsqlEnv?.binding === 'turso'
+          ? '# DB: TURSO_DATABASE_URL + TURSO_AUTH_TOKEN（已由平台注入时可省略）'
+          : '# DB: LIBSQL_URL + LIBSQL_AUTH_TOKEN（已由平台注入时可省略）',
+      );
+    } else if (useRemoteLibsql && libsqlUrl.trim()) {
+      lines.push(`TURSO_DATABASE_URL=${libsqlUrl.trim()}`);
+      if (libsqlToken.trim()) lines.push(`TURSO_AUTH_TOKEN=${libsqlToken.trim()}`);
     } else if (!useRemoteLibsql && sqlitePath.trim()) {
       lines.push('DATABASE_ENGINE=nodejs-sqlite');
       lines.push(`SQLITE_PATH=${sqlitePath.trim()}`);
     }
     if (nextAuthUrl.trim()) lines.push(`NEXTAUTH_URL=${nextAuthUrl.trim()}`);
     if (nextAuthSecret.trim()) lines.push(`NEXTAUTH_SECRET=${nextAuthSecret.trim()}`);
-    if (redisUrl.trim()) lines.push(`UPSTASH_REDIS_REST_URL=${redisUrl.trim()}`);
-    if (redisToken.trim()) lines.push(`UPSTASH_REDIS_REST_TOKEN=${redisToken.trim()}`);
+    if (redisUrl.trim()) lines.push(`KV_REST_API_URL=${redisUrl.trim()}`);
+    if (redisToken.trim()) lines.push(`KV_REST_API_TOKEN=${redisToken.trim()}`);
     return lines.join('\n');
-  }, [useRemoteLibsql, libsqlUrl, libsqlToken, sqlitePath, nextAuthUrl, nextAuthSecret, redisUrl, redisToken]);
+  }, [
+    dbFromPlatform,
+    libsqlEnv?.binding,
+    useRemoteLibsql,
+    libsqlUrl,
+    libsqlToken,
+    sqlitePath,
+    nextAuthUrl,
+    nextAuthSecret,
+    redisUrl,
+    redisToken,
+  ]);
 
   const genSecret = () => setNextAuthSecret(randomBase64Url(43));
 
@@ -92,16 +131,20 @@ export function InstallWizard({ initialPhase }: { initialPhase: InstallPhase }) 
     setMsg(null);
     try {
       const variables: Record<string, string> = {};
-      if (useRemoteLibsql && libsqlUrl.trim()) variables.LIBSQL_URL = libsqlUrl.trim();
-      if (useRemoteLibsql && libsqlToken.trim()) variables.LIBSQL_AUTH_TOKEN = libsqlToken.trim();
-      if (!useRemoteLibsql && sqlitePath.trim()) {
+      if (!dbFromPlatform && useRemoteLibsql && libsqlUrl.trim()) {
+        variables.TURSO_DATABASE_URL = libsqlUrl.trim();
+      }
+      if (!dbFromPlatform && useRemoteLibsql && libsqlToken.trim()) {
+        variables.TURSO_AUTH_TOKEN = libsqlToken.trim();
+      }
+      if (!dbFromPlatform && !useRemoteLibsql && sqlitePath.trim()) {
         variables.DATABASE_ENGINE = 'nodejs-sqlite';
         variables.SQLITE_PATH = sqlitePath.trim();
       }
       if (nextAuthUrl.trim()) variables.NEXTAUTH_URL = nextAuthUrl.trim();
       if (nextAuthSecret.trim()) variables.NEXTAUTH_SECRET = nextAuthSecret.trim();
-      if (redisUrl.trim()) variables.UPSTASH_REDIS_REST_URL = redisUrl.trim();
-      if (redisToken.trim()) variables.UPSTASH_REDIS_REST_TOKEN = redisToken.trim();
+      if (redisUrl.trim()) variables.KV_REST_API_URL = redisUrl.trim();
+      if (redisToken.trim()) variables.KV_REST_API_TOKEN = redisToken.trim();
       const r = await fetch('/api/install/vercel-env', {
         method: 'POST',
         headers: { ...installAuthHeaders, 'Content-Type': 'application/json' },
@@ -204,40 +247,56 @@ export function InstallWizard({ initialPhase }: { initialPhase: InstallPhase }) 
 
         <div className="space-y-3">
           <p className="text-sm font-medium">{t('databaseHeading')}</p>
-          <div className="flex gap-4 text-sm">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="radio" checked={useRemoteLibsql} onChange={() => setUseRemoteLibsql(true)} />
-              {t('dbLibsql')}
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="radio" checked={!useRemoteLibsql} onChange={() => setUseRemoteLibsql(false)} />
-              {t('dbSqlite')}
-            </label>
-          </div>
-          {useRemoteLibsql ? (
-            <div className="space-y-2">
-              <Input
-                placeholder={t('placeholderLibsqlUrl')}
-                value={libsqlUrl}
-                onChange={(e) => setLibsqlUrl(e.target.value)}
-              />
-              <Input
-                placeholder={t('placeholderLibsqlToken')}
-                value={libsqlToken}
-                onChange={(e) => setLibsqlToken(e.target.value)}
-                type="password"
-                autoComplete="off"
-              />
+          {dbFromPlatform ? (
+            <div className="rounded-lg border border-emerald-200/80 bg-emerald-50/40 px-3 py-3 text-sm space-y-2 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+              <p className="font-medium text-foreground">
+                {libsqlEnv?.binding === 'turso' ? t('dbInjectedTursoTitle') : t('dbInjectedLibsqlTitle')}
+              </p>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {libsqlEnv?.binding === 'turso' ? t('dbInjectedTursoBody') : t('dbInjectedLibsqlBody')}
+              </p>
+              {!libsqlEnv?.canConnect && (
+                <p className="text-destructive text-xs font-medium">{t('dbInjectedMissingToken')}</p>
+              )}
             </div>
           ) : (
-            <div className="space-y-2">
-              <Input
-                placeholder={t('placeholderSqlitePath')}
-                value={sqlitePath}
-                onChange={(e) => setSqlitePath(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">{t('sqliteHint')}</p>
-            </div>
+            <>
+              <div className="flex gap-4 text-sm">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" checked={useRemoteLibsql} onChange={() => setUseRemoteLibsql(true)} />
+                  {t('dbLibsql')}
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" checked={!useRemoteLibsql} onChange={() => setUseRemoteLibsql(false)} />
+                  {t('dbSqlite')}
+                </label>
+              </div>
+              {useRemoteLibsql ? (
+                <div className="space-y-2">
+                  <Input
+                    placeholder={t('placeholderLibsqlUrl')}
+                    value={libsqlUrl}
+                    onChange={(e) => setLibsqlUrl(e.target.value)}
+                  />
+                  <Input
+                    placeholder={t('placeholderLibsqlToken')}
+                    value={libsqlToken}
+                    onChange={(e) => setLibsqlToken(e.target.value)}
+                    type="password"
+                    autoComplete="off"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Input
+                    placeholder={t('placeholderSqlitePath')}
+                    value={sqlitePath}
+                    onChange={(e) => setSqlitePath(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">{t('sqliteHint')}</p>
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -291,6 +350,9 @@ export function InstallWizard({ initialPhase }: { initialPhase: InstallPhase }) 
         <div className="space-y-3 rounded-lg border p-4">
           <p className="text-sm font-medium">{t('vercelHeading')}</p>
           <p className="text-xs text-muted-foreground">{t('vercelHint')}</p>
+          {dbFromPlatform && (
+            <p className="text-xs text-emerald-800 dark:text-emerald-300">{t('vercelSkipDb')}</p>
+          )}
           <Input
             placeholder={t('placeholderVercelToken')}
             value={vercelToken}

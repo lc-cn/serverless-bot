@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       {
         error: 'no_database',
         message:
-          '当前进程未检测到数据库配置。请设置 LIBSQL_URL（及远端用 Token）或 SQLITE_PATH 后重新部署或重启，再打开本页。',
+          '当前进程未检测到数据库配置。请设置 TURSO_DATABASE_URL（及 TURSO_AUTH_TOKEN）、或 LIBSQL_*、或 SQLITE_PATH 后重新部署或重启，再打开本页。',
       },
       { status: 400 }
     );

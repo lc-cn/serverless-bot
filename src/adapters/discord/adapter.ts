@@ -94,19 +94,61 @@ export class DiscordAdapter extends Adapter {
     const interaction = rawData as any;
 
     if (interaction.type === 1) return null; // PING
+    if (interaction.type === 4) return null; // APPLICATION_COMMAND_AUTOCOMPLETE
     if (interaction.type === 2 && interaction.data?.type === 1) {
       return this.parseCommandEvent(botId, interaction);
     }
     if (interaction.type === 3) {
       return this.parseComponentEvent(botId, interaction);
     }
+    if (interaction.type === 5) {
+      return this.parseModalSubmitEvent(botId, interaction);
+    }
     return null;
+  }
+
+  /** 扁平化斜杠命令参数（含子命令嵌套）；叶子为 `name=value` */
+  private flattenSlashOptions(options: unknown[] | undefined): string[] {
+    const parts: string[] = [];
+    for (const opt of options || []) {
+      if (opt == null || typeof opt !== 'object') continue;
+      const o = opt as { type?: number; name?: string; value?: unknown; options?: unknown[] };
+      const t = o.type;
+      if (t === 1 || t === 2) {
+        if (o.name) parts.push(o.name);
+        parts.push(...this.flattenSlashOptions(o.options));
+      } else if (o.name != null) {
+        const v = o.value;
+        const vs = v === undefined || v === null ? '' : String(v);
+        parts.push(`${o.name}=${vs}`);
+      }
+    }
+    return parts;
+  }
+
+  /** Modal 表单项 type 4 的 custom_id / value */
+  private flattenModalFields(components: unknown[] | undefined): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const row of components || []) {
+      if (row == null || typeof row !== 'object') continue;
+      const r = row as { type?: number; components?: unknown[] };
+      if (r.type !== 1 || !Array.isArray(r.components)) continue;
+      for (const c of r.components) {
+        if (c == null || typeof c !== 'object') continue;
+        const cell = c as { type?: number; custom_id?: string; value?: unknown };
+        if (cell.type === 4 && cell.custom_id) {
+          out[cell.custom_id] = String(cell.value ?? '');
+        }
+      }
+    }
+    return out;
   }
 
   private parseCommandEvent(botId: string, interaction: any): MessageEvent {
     const isGroup = !!interaction.guild_id;
     const cmdName = interaction.data?.name || '';
-    const optVal = interaction.data?.options?.[0]?.value as string || '';
+    const optParts = this.flattenSlashOptions(interaction.data?.options);
+    const rawContent = (`/${cmdName} ${optParts.join(' ')}`).trim();
 
     return {
       id: generateId(),
@@ -120,8 +162,37 @@ export class DiscordAdapter extends Adapter {
         nickname: interaction.member?.user.username || interaction.user?.username || '',
         role: 'normal' as UserRole,
       },
-      content: [{ type: 'text', data: { text: `/${cmdName} ${optVal}`.trim() } }],
-      rawContent: `/${cmdName} ${optVal}`.trim(),
+      content: [{ type: 'text', data: { text: rawContent } }],
+      rawContent,
+      groupId: isGroup ? interaction.guild_id : undefined,
+      messageId: interaction.id,
+      raw: interaction,
+    };
+  }
+
+  private parseModalSubmitEvent(botId: string, interaction: any): MessageEvent {
+    const isGroup = !!interaction.guild_id;
+    const modalId = interaction.data?.custom_id || 'modal';
+    const fields = this.flattenModalFields(interaction.data?.components);
+    const fieldStr = Object.entries(fields)
+      .map(([k, v]) => `${k}=${v}`)
+      .join('&');
+    const rawContent = fieldStr ? `modal:${modalId}|${fieldStr}` : `modal:${modalId}`;
+
+    return {
+      id: generateId(),
+      type: 'message',
+      subType: isGroup ? 'group' : 'private',
+      platform: 'discord',
+      botId,
+      timestamp: new Date().getTime(),
+      sender: {
+        userId: interaction.member?.user.id || interaction.user?.id || '',
+        nickname: interaction.member?.user.username || interaction.user?.username || '',
+        role: 'normal' as UserRole,
+      },
+      content: [{ type: 'text', data: { text: rawContent } }],
+      rawContent,
       groupId: isGroup ? interaction.guild_id : undefined,
       messageId: interaction.id,
       raw: interaction,

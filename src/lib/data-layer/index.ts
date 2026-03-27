@@ -17,6 +17,7 @@ export { getDataLayer, getSql, getKv } from './context';
 export {
   db,
   getDatabaseEngine,
+  getLibsqlEnvSnapshot,
   isRelationalDatabaseConfigured,
   resolvePrimarySqlConfig,
 } from '@/lib/database/db';

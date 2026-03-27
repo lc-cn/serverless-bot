@@ -98,11 +98,21 @@ export class TelegramBot extends Bot {
     return { text, entities: entities.length > 0 ? entities : undefined };
   }
 
+  /** 若首段为图片，抽出 `file_id` 或 URL 供 sendPhoto，其余段作为 caption */
+  private extractLeadingPhoto(message: Message): { photo: string | null; rest: Message } {
+    if (message.length === 0) return { photo: null, rest: message };
+    const [first, ...rest] = message;
+    if (first.type !== 'image') return { photo: null, rest: message };
+    const d = first.data as { url?: string; file?: string };
+    const photo = (d.file || d.url || '').trim();
+    if (!photo) return { photo: null, rest: message };
+    return { photo, rest };
+  }
+
   // ==================== 消息发送 ====================
 
   async sendMessage(target: SendTarget, message: Message): Promise<SendResult> {
     try {
-      const { text, entities } = this.convertMessage(message);
       const chatId = target.type === 'private' ? target.userId : target.groupId;
       if (!this.accessToken) {
         return { success: false, error: 'Telegram access token missing' };
@@ -110,6 +120,24 @@ export class TelegramBot extends Bot {
       if (!chatId) {
         return { success: false, error: 'chat_id not resolved' };
       }
+
+      const { photo, rest } = this.extractLeadingPhoto(message);
+      if (photo) {
+        const { text, entities } = this.convertMessage(rest);
+        console.debug('[Telegram] sendPhoto', { targetType: target.type, chatId, captionLen: text.length });
+        const result = await this.callApi<{ message_id: number }>('sendPhoto', {
+          chat_id: chatId,
+          photo,
+          caption: text || undefined,
+          caption_entities: entities && entities.length > 0 ? entities : undefined,
+        });
+        return {
+          success: true,
+          messageId: String(result.message_id),
+        };
+      }
+
+      const { text, entities } = this.convertMessage(message);
       console.debug('[Telegram] sendMessage', { targetType: target.type, chatId, textLen: text.length });
 
       const result = await this.callApi<{ message_id: number }>('sendMessage', {

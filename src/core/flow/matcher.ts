@@ -89,10 +89,24 @@ export class Matcher {
         return (event as RequestEvent).comment || '';
       
       case 'notice':
-        return (event as NoticeEvent).subType;
+        return this.noticeMatchableContent(event as NoticeEvent);
       
       default:
         return '';
     }
+  }
+
+  /**
+   * 通知类事件的可匹配文本：优先 `extra.matchContent` / `extra.event_type`（平台事件名），否则为 `subType`。
+   */
+  static noticeMatchableContent(n: NoticeEvent): string {
+    const ex = n.extra;
+    if (ex && typeof ex.matchContent === 'string' && ex.matchContent.length > 0) {
+      return ex.matchContent;
+    }
+    if (ex && typeof ex.event_type === 'string' && ex.event_type.length > 0) {
+      return ex.event_type;
+    }
+    return n.subType;
   }
 }

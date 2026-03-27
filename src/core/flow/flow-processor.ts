@@ -349,7 +349,7 @@ export class FlowProcessor {
       case 'request':
         return (event as RequestEvent).comment || '(no comment)';
       case 'notice':
-        return (event as NoticeEvent).subType;
+        return Matcher.noticeMatchableContent(event as NoticeEvent);
       default:
         return '(unknown)';
     }

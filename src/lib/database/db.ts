@@ -16,7 +16,9 @@ function inferEngine(): DatabaseEngine {
     return explicit;
   }
   const hasSqlitePath = Boolean(process.env.SQLITE_PATH?.trim());
-  const hasLibsql = Boolean(process.env.LIBSQL_URL?.trim());
+  const hasLibsql = Boolean(
+    process.env.LIBSQL_URL?.trim() || process.env.TURSO_DATABASE_URL?.trim(),
+  );
   if (hasSqlitePath && !hasLibsql) return 'nodejs-sqlite';
   return 'libsql';
 }
@@ -30,20 +32,80 @@ function isFileSqlUrl(url: string): boolean {
   return /^file:/i.test(url.trim());
 }
 
+/**
+ * 合并 Vercel Turso 默认名 `TURSO_*` 与通用 `LIBSQL_*`。
+ * 优先级：与 Vercel 集成一致，`TURSO_DATABASE_URL` > `LIBSQL_URL`；Token 两组互为后备。
+ */
+function pickLibsqlFromEnv(): {
+  url: string;
+  authToken: string | undefined;
+  isFile: boolean;
+  binding: 'libsql' | 'turso';
+} | null {
+  const libsqlUrl = process.env.LIBSQL_URL?.trim();
+  const libsqlToken = process.env.LIBSQL_AUTH_TOKEN?.trim();
+  const tursoUrl = process.env.TURSO_DATABASE_URL?.trim();
+  const tursoToken = process.env.TURSO_AUTH_TOKEN?.trim();
+
+  if (tursoUrl) {
+    const isFile = isFileSqlUrl(tursoUrl);
+    const authToken = tursoToken || libsqlToken || undefined;
+    if (!isFile && !authToken) {
+      console.warn(
+        '[DB] 已设置 TURSO_DATABASE_URL 但未找到 TURSO_AUTH_TOKEN 或 LIBSQL_AUTH_TOKEN，跳过连接。',
+      );
+      return null;
+    }
+    return { url: tursoUrl, authToken, isFile, binding: 'turso' };
+  }
+
+  if (libsqlUrl) {
+    const isFile = isFileSqlUrl(libsqlUrl);
+    const authToken = libsqlToken || tursoToken || undefined;
+    if (!isFile && !authToken) {
+      console.warn(
+        '[DB] 已设置 LIBSQL_URL（远端）但未找到 LIBSQL_AUTH_TOKEN 或 TURSO_AUTH_TOKEN，跳过连接。',
+      );
+      return null;
+    }
+    return { url: libsqlUrl, authToken, isFile, binding: 'libsql' };
+  }
+
+  return null;
+}
+
 export function resolvePrimarySqlConfig(): {
   url: string;
   authToken: string | undefined;
   isFile: boolean;
 } | null {
-  const url = process.env.LIBSQL_URL?.trim();
-  if (!url) return null;
-  const token = process.env.LIBSQL_AUTH_TOKEN?.trim();
-  const isFile = isFileSqlUrl(url);
-  if (!isFile && !token) {
-    console.warn('[DB] 远端 libSQL 需配置 LIBSQL_AUTH_TOKEN；当前无 token，跳过连接。');
-    return null;
-  }
-  return { url, authToken: isFile ? token || undefined : token, isFile };
+  const picked = pickLibsqlFromEnv();
+  if (!picked) return null;
+  const { url, authToken, isFile } = picked;
+  return { url, authToken, isFile };
+}
+
+/** 供安装页判断数据库 URL 是否已由部署平台注入（不返回密钥）。 */
+export function getLibsqlEnvSnapshot(): {
+  binding: 'libsql' | 'turso' | null;
+  tokenPresent: boolean;
+  canConnect: boolean;
+} {
+  const binding = process.env.TURSO_DATABASE_URL?.trim()
+    ? ('turso' as const)
+    : process.env.LIBSQL_URL?.trim()
+      ? ('libsql' as const)
+      : null;
+  const tokenPresent = Boolean(libsqlTokenOrTursoToken());
+  return {
+    binding,
+    tokenPresent,
+    canConnect: resolvePrimarySqlConfig() != null,
+  };
+}
+
+function libsqlTokenOrTursoToken(): string | undefined {
+  return process.env.TURSO_AUTH_TOKEN?.trim() || process.env.LIBSQL_AUTH_TOKEN?.trim();
 }
 
 export function isRelationalDatabaseConfigured(): boolean {
@@ -65,7 +127,9 @@ class LibsqlDbClient implements DbClient {
 
     const cfg = resolvePrimarySqlConfig();
     if (!cfg) {
-      console.warn('[DB] 未配置 LIBSQL_URL — libsql 主库未连接；读操作多返回空、写操作不落库。');
+      console.warn(
+        '[DB] 未配置可用 libSQL 连接（请设置 TURSO_DATABASE_URL 或 LIBSQL_URL，远端须带对应 Token）— 主库未连接。',
+      );
       return null;
     }
 

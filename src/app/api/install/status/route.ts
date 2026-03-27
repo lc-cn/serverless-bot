@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { db, isRelationalDatabaseConfigured } from '@/lib/data-layer';
+import { db, getLibsqlEnvSnapshot, isRelationalDatabaseConfigured } from '@/lib/data-layer';
 import { getLatestAppliedMigration } from '@/lib/database/sql-migrate';
 import { getInstallPhase } from '@/lib/install/install-state';
 import { localeFromRequestCookies, pickMessage } from '@/lib/i18n/catalog';
@@ -29,6 +29,7 @@ export async function GET() {
     return NextResponse.json({
       phase,
       databaseConfigured: isRelationalDatabaseConfigured(),
+      libsqlEnv: getLibsqlEnvSnapshot(),
       lastAppliedMigration,
       hints,
     });
@@ -38,6 +39,11 @@ export async function GET() {
       {
         phase: 'no_database' as const,
         databaseConfigured: false,
+        libsqlEnv: {
+          binding: null,
+          tokenPresent: false,
+          canConnect: false,
+        },
         lastAppliedMigration: null,
         hints,
         error: process.env.NODE_ENV === 'development' ? String(e) : undefined,

@@ -8,7 +8,7 @@ import {
 } from '@/core/adapter';
 import type { AdapterSetupGuideDefinition } from '@/core/adapter-setup-guide';
 import { WechatMpBot } from './bot';
-import type { BotConfig, BotEvent, MessageEvent } from '@/types';
+import type { BotConfig, BotEvent, Message, MessageEvent, NoticeEvent } from '@/types';
 import { generateId } from '@/lib/shared/utils';
 import { wechatMpVerifySignature } from './xml';
 import { wechatMpDecrypt, wechatMpVerifyMsgSignature } from './crypto';
@@ -166,19 +166,84 @@ export class WechatMpAdapter extends Adapter {
     if (!fields || typeof fields !== 'object') return null;
 
     const msgType = fields.MsgType;
-    if (msgType === 'event') {
-      return null;
-    }
-    if (msgType !== 'text') {
-      return null;
-    }
-
     const from = fields.FromUserName;
-    const content = fields.Content || '';
-    const msgId = fields.MsgId;
     const createTime = Number(fields.CreateTime) || Math.floor(Date.now() / 1000);
 
-    if (!from || !msgId) return null;
+    if (!from) return null;
+
+    if (msgType === 'event') {
+      const evName = fields.Event;
+      if (!evName) return null;
+      return {
+        id: generateId(),
+        type: 'notice',
+        subType: 'custom',
+        platform: 'wechat_mp',
+        botId,
+        timestamp: createTime * 1000,
+        sender: { userId: from, role: 'normal' },
+        extra: {
+          event_type: evName,
+          matchContent: `wechat_mp:${evName}`,
+          event_key: fields.EventKey,
+          ticket: fields.Ticket,
+        },
+        raw: fields,
+      } satisfies NoticeEvent;
+    }
+
+    if (msgType === 'text') {
+      const content = fields.Content || '';
+      const msgId = fields.MsgId;
+      if (!msgId) return null;
+      return {
+        id: generateId(),
+        type: 'message',
+        subType: 'private',
+        platform: 'wechat_mp',
+        botId,
+        timestamp: createTime * 1000,
+        sender: { userId: from, nickname: undefined, role: 'normal' },
+        content: content ? [{ type: 'text', data: { text: content } }] : [],
+        rawContent: content,
+        messageId: msgId,
+        raw: fields,
+      } satisfies MessageEvent;
+    }
+
+    const msgId = fields.MsgId || `${createTime}:${msgType}`;
+    const parts: Message = [];
+    let rawContent = '';
+
+    if (msgType === 'image') {
+      const url = fields.PicUrl?.trim();
+      if (url) parts.push({ type: 'image', data: { url } });
+      rawContent = fields.Content?.trim() || '[图片]';
+    } else if (msgType === 'voice') {
+      const mediaId = fields.MediaId;
+      if (mediaId) parts.push({ type: 'audio', data: { media_id: mediaId, format: fields.Format } });
+      rawContent = '[语音]';
+    } else if (msgType === 'video' || msgType === 'shortvideo') {
+      const mediaId = fields.MediaId;
+      if (mediaId) parts.push({ type: 'video', data: { media_id: mediaId, thumb: fields.ThumbMediaId } });
+      rawContent = '[视频]';
+    } else if (msgType === 'location') {
+      const label = fields.Label || '';
+      const x = fields.Location_X;
+      const y = fields.Location_Y;
+      parts.push({
+        type: 'location',
+        data: { label, x, y, scale: fields.Scale },
+      });
+      rawContent = label || `[位置 ${x},${y}]`;
+    } else if (msgType === 'link') {
+      const title = fields.Title || '';
+      const url = fields.Url || '';
+      parts.push({ type: 'share', data: { title, description: fields.Description, url } });
+      rawContent = title || url || '[链接]';
+    } else {
+      return null;
+    }
 
     return {
       id: generateId(),
@@ -187,13 +252,9 @@ export class WechatMpAdapter extends Adapter {
       platform: 'wechat_mp',
       botId,
       timestamp: createTime * 1000,
-      sender: {
-        userId: from,
-        nickname: undefined,
-        role: 'normal',
-      },
-      content: content ? [{ type: 'text', data: { text: content } }] : [],
-      rawContent: content,
+      sender: { userId: from, nickname: undefined, role: 'normal' },
+      content: parts,
+      rawContent,
       messageId: msgId,
       raw: fields,
     } satisfies MessageEvent;
@@ -236,6 +297,6 @@ export class WechatMpAdapter extends Adapter {
   }
 
   getSupportedFeatures(): AdapterFeature[] {
-    return ['message', 'user'];
+    return ['message', 'user', 'notice', 'file'];
   }
 }

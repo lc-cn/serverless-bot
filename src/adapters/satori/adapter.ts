@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { Adapter, FormUISchema, AdapterFeature } from '@/core/adapter';
 import type { AdapterSetupGuideDefinition } from '@/core/adapter-setup-guide';
 import { SatoriBot } from './bot';
-import type { BotConfig, BotEvent, MessageEvent } from '@/types';
+import type { BotConfig, BotEvent, MessageEvent, UserRole } from '@/types';
 import { generateId } from '@/lib/shared/utils';
 
 function headerGet(headers: Record<string, string>, name: string): string | undefined {
@@ -29,6 +29,9 @@ interface SatoriWebhookEvent {
     created_at?: number;
   };
   user?: { id?: string; name?: string; nick?: string };
+  member?: { user?: { id?: string; name?: string; nick?: string } };
+  argv?: { name?: string; arguments?: unknown[]; options?: Record<string, unknown> };
+  button?: { id?: string };
 }
 
 function channelIsDirect(ch: { type?: number | string } | undefined): boolean {
@@ -156,10 +159,100 @@ export class SatoriAdapter extends Adapter {
     }
 
     const ev = rawData as SatoriWebhookEvent;
-    if (ev.type !== 'message-created') {
-      return null;
+    const ty = ev.type;
+
+    if (ty === 'interaction/command') {
+      return this.parseSatoriSlash(botId, ev);
+    }
+    if (ty === 'interaction/button') {
+      return this.parseSatoriButton(botId, ev);
     }
 
+    if (ty === 'message-created' || ty === 'message-updated' || ty === 'message-deleted') {
+      return this.buildSatoriMessageEvent(botId, ev, { deleted: ty === 'message-deleted' });
+    }
+
+    return null;
+  }
+
+  private parseSatoriSlash(botId: string, ev: SatoriWebhookEvent): MessageEvent | null {
+    const argv = ev.argv;
+    const name = argv?.name?.trim();
+    const ch = ev.channel ?? ev.message?.channel;
+    if (!name || !ch?.id) return null;
+
+    const user = ev.user ?? ev.member?.user ?? ev.message?.user;
+    if (!user?.id) return null;
+
+    const isDm = channelIsDirect(ch);
+    const args = Array.isArray(argv?.arguments) ? argv.arguments.map(String).join(' ') : '';
+    const rawContent = (`/${name}${args ? ` ${args}` : ''}`).trim();
+    const ts = (ev.timestamp ?? Date.now()) as number;
+    const nick = user.nick || user.name;
+
+    return {
+      id: generateId(),
+      type: 'message',
+      subType: isDm ? 'private' : 'group',
+      platform: 'satori',
+      botId,
+      timestamp: ts,
+      sender: {
+        userId: String(user.id),
+        nickname: nick,
+        role: 'normal' as UserRole,
+      },
+      content: [{ type: 'text', data: { text: rawContent } }],
+      rawContent,
+      groupId: isDm ? undefined : String(ch.id),
+      messageId: String(ev.message?.id || generateId()),
+      raw: {
+        ...ev,
+        __satori: { channelId: String(ch.id), platform: ev.login?.platform },
+      },
+    };
+  }
+
+  private parseSatoriButton(botId: string, ev: SatoriWebhookEvent): MessageEvent | null {
+    const bid = ev.button?.id;
+    const ch = ev.channel ?? ev.message?.channel;
+    if (bid == null || bid === '' || !ch?.id) return null;
+
+    const user = ev.user ?? ev.member?.user ?? ev.message?.user;
+    if (!user?.id) return null;
+
+    const isDm = channelIsDirect(ch);
+    const ts = (ev.timestamp ?? Date.now()) as number;
+    const nick = user.nick || user.name;
+
+    return {
+      id: generateId(),
+      type: 'message',
+      subType: isDm ? 'private' : 'group',
+      platform: 'satori',
+      botId,
+      timestamp: ts,
+      sender: {
+        userId: String(user.id),
+        nickname: nick,
+        role: 'normal' as UserRole,
+      },
+      content: [{ type: 'text', data: { text: bid } }],
+      rawContent: bid,
+      groupId: isDm ? undefined : String(ch.id),
+      messageId: String(ev.message?.id || generateId()),
+      raw: {
+        ...ev,
+        __satori: { channelId: String(ch.id), platform: ev.login?.platform },
+      },
+    };
+  }
+
+  private buildSatoriMessageEvent(
+    botId: string,
+    ev: SatoriWebhookEvent,
+    opts: { deleted?: boolean },
+  ): MessageEvent | null {
     const msg = ev.message;
     if (!msg?.id) return null;
 
@@ -173,8 +266,10 @@ export class SatoriAdapter extends Adapter {
     const text = typeof msg.content === 'string' ? msg.content : '';
     const ts = (ev.timestamp ?? msg.created_at ?? Date.now()) as number;
     const nick = user.nick || user.name;
+    const deleted = !!opts.deleted;
+    const rawContent = deleted ? '[message-deleted]' : text;
 
-    const envelope: MessageEvent = {
+    return {
       id: generateId(),
       type: 'message',
       subType: isDm ? 'private' : 'group',
@@ -186,8 +281,8 @@ export class SatoriAdapter extends Adapter {
         nickname: nick,
         role: 'normal',
       },
-      content: text ? [{ type: 'text', data: { text } }] : [],
-      rawContent: text,
+      content: deleted || !text ? [] : [{ type: 'text', data: { text } }],
+      rawContent,
       groupId: isDm ? undefined : String(ch.id),
       messageId: String(msg.id),
       raw: {
@@ -198,7 +293,6 @@ export class SatoriAdapter extends Adapter {
         },
       },
     };
-    return envelope;
   }
 
   async verifyWebhook(

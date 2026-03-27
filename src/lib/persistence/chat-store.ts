@@ -76,12 +76,19 @@ class KvChatStore implements ChatStore {
     await kv.ltrim(key, -cap, -1);
   }
 
-  async listMessages({ platform, botId, peerType, peerId, limit, offset }: Parameters<ChatStore['listMessages']>[0]) {
+  /**
+   * 与 SqlChatStore 一致：返回 **最新在前**（ORDER BY created_at DESC 语义）。
+   * 列表经 rpush 写入，最右为最新，故用 LRANGE 负下标取尾部再 reverse。
+   */
+  async listMessages({ platform, botId, peerType, peerId, limit = 200, offset = 0 }: Parameters<ChatStore['listMessages']>[0]) {
     const key = kvMessageKey(platform, botId, peerType ?? undefined, peerId ?? undefined);
-    const start = offset ?? 0;
-    const end = limit ? start + limit - 1 : -1;
+    const lim = limit ?? 200;
+    const off = offset ?? 0;
+    const sliceLen = off + lim;
+    const start = -sliceLen;
+    const end = off === 0 ? -1 : -(off + 1);
     const messages = (await this.kv().lrange<ChatMessage>(key, start, end)) || [];
-    return messages;
+    return [...messages].reverse();
   }
 
   async upsertContact({ platform, botId, contact, groupId }: Parameters<ChatStore['upsertContact']>[0]) {

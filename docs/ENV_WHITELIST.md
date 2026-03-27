@@ -19,7 +19,8 @@
 | 变量 | 说明 |
 |------|------|
 | `DATABASE_ENGINE` | `libsql` / `nodejs-sqlite` / `mysql` |
-| `LIBSQL_URL` / `LIBSQL_AUTH_TOKEN` | Turso / libSQL |
+| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | **首选**（Vercel Turso 集成）；可与下右混用 Token |
+| `LIBSQL_URL` / `LIBSQL_AUTH_TOKEN` | 次选 / 本地兼容；解析优先级低于 `TURSO_*` |
 | `SQLITE_PATH` | 本地 SQLite 文件路径 |
 | `MYSQL_HOST` / `MYSQL_PORT` / `MYSQL_USER` / `MYSQL_PASSWORD` / `MYSQL_DATABASE` / `MYSQL_POOL_SIZE` | MySQL |
 
@@ -27,7 +28,9 @@
 
 | 变量 | 说明 |
 |------|------|
-| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Upstash 兼容 REST |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | **首选**（Vercel KV；写 Token） |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | 次选（Upstash 控制台命名） |
+| `KV_REST_API_READ_ONLY_TOKEN` | Vercel 注入的只读 Token；**应用不使用**（请用 `KV_REST_API_TOKEN`） |
 | `KV_BACKEND` | 强制 `memory` 等 |
 | `UPSTASH_DISABLE_TELEMETRY` | 可选 |
 
