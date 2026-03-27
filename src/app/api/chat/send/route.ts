@@ -82,7 +82,10 @@ export async function POST(req: NextRequest) {
           platform,
           botId,
           timestamp: Date.now(),
-          sender: { userId: 'web', role: 'normal' },
+          sender: {
+            userId: peerType === 'group' ? 'web' : peerId || 'web',
+            role: 'normal',
+          },
           content: [{ type: 'text', data: { text: String(text) } }],
           rawContent: String(text),
           messageId: message.id,

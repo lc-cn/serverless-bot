@@ -16,6 +16,7 @@ import {
   Workflow,
   Zap,
 } from 'lucide-react';
+import { ServerOverviewSection } from '@/components/dashboard/server-overview-section';
 
 function StatLinkCard({
   href,
@@ -109,6 +110,8 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t('title')}</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground sm:text-base">{t('subtitle')}</p>
       </div>
+
+      <ServerOverviewSection />
 
       <section aria-labelledby="dash-stats-heading">
         <h2 id="dash-stats-heading" className="sr-only">

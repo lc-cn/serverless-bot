@@ -18,23 +18,12 @@ import {
 import { ArrowLeft } from 'lucide-react';
 import type { LlmMcpServer, LlmSkill, LlmTool, LlmVendorModel } from '@/types';
 import { LLM_AGENT_SYS_VAR_PATHS } from '@/lib/llm/agent-prompt-sys';
-
-type SkillInjectUi = 'none' | 'summary' | 'full';
-
-function mergeSkillInjectIntoExtraJson(raw: string, skillInject: SkillInjectUi): string | undefined {
-  let obj: Record<string, unknown> = {};
-  const t = raw.trim();
-  if (t) {
-    try {
-      obj = JSON.parse(t) as Record<string, unknown>;
-    } catch {
-      obj = {};
-    }
-  }
-  obj.skillInject = skillInject;
-  const s = JSON.stringify(obj);
-  return s === '{}' ? undefined : s;
-}
+import {
+  DEFAULT_MEMORY_WINDOW_TURNS,
+  mergeAgentFormExtraJson,
+  type AgentMemoryModeUi,
+  type SkillInjectUi,
+} from '@/lib/llm/agent-form-extra';
 
 function toggleId(ids: string[], id: string): string[] {
   return ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
@@ -58,6 +47,8 @@ export default function NewAgentPage() {
     presetSystemPrompt: '',
     extraJson: '',
     skillInject: 'summary' as SkillInjectUi,
+    memoryMode: 'sliding_window' as AgentMemoryModeUi,
+    memoryWindowTurns: DEFAULT_MEMORY_WINDOW_TURNS,
   });
 
   const link =
@@ -116,7 +107,11 @@ export default function NewAgentPage() {
           skillIds,
           toolIds,
           mcpServerIds,
-          extraJson: mergeSkillInjectIntoExtraJson(form.extraJson, form.skillInject),
+          extraJson: mergeAgentFormExtraJson(form.extraJson, {
+            skillInject: form.skillInject,
+            memoryMode: form.memoryMode,
+            memoryWindowTurns: form.memoryWindowTurns,
+          }),
         }),
       });
       const d = await r.json();
@@ -254,6 +249,46 @@ export default function NewAgentPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">{t('injectFootnoteNew')}</p>
+            </div>
+
+            <div className="rounded-lg border p-4 space-y-3">
+              <div className="text-sm font-medium">{t('sectionMemory')}</div>
+              <p className="text-xs text-muted-foreground">{t('memoryHintNew')}</p>
+              <div>
+                <label className="text-sm font-medium">{t('labelMemoryMode')}</label>
+                <Select
+                  value={form.memoryMode}
+                  onValueChange={(v) => setForm({ ...form, memoryMode: v as AgentMemoryModeUi })}
+                >
+                  <SelectTrigger className="mt-1 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sliding_window">{t('memoryModeSliding')}</SelectItem>
+                    <SelectItem value="none">{t('memoryModeNone')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {form.memoryMode === 'sliding_window' ? (
+                <div>
+                  <label className="text-sm font-medium">{t('labelMemoryWindowTurns')}</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    className="mt-1"
+                    value={form.memoryWindowTurns}
+                    onChange={(e) => {
+                      const n = parseInt(e.target.value, 10);
+                      setForm({
+                        ...form,
+                        memoryWindowTurns: Number.isFinite(n) ? n : form.memoryWindowTurns,
+                      });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">{t('memoryWindowFootnote')}</p>
+                </div>
+              ) : null}
             </div>
 
             <div className="rounded-lg border p-4 space-y-3">

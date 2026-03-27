@@ -36,6 +36,7 @@ import { normalizeTriggerScope } from '@/lib/trigger/trigger-scope';
 import type { TriggerScope } from '@/types';
 import { getSqlDialect } from '@/lib/database/sql-dialect';
 import { PRESET_LIBRARY_OWNER_ID } from '@/lib/preset-library';
+import { parseAgentMemoryFromExtra } from '@/lib/llm/agent-memory-config';
 
 // ==================== Bot 操作 ====================
 export async function getBots(ownerId?: string): Promise<BotConfig[]> {
@@ -1125,6 +1126,9 @@ export interface LlmAgentRuntimeConfig {
     /** Agent extra_json.maxToolRounds；工具调用轮次上限，与 LLM_AGENT_MAX_TOOL_ROUNDS 联用 */
     maxToolRounds?: number;
   };
+  /** extra_json.memoryMode / memoryWindowTurns */
+  memoryMode: 'none' | 'sliding_window';
+  memoryWindowTurns: number;
 }
 
 function parseSkillInjectFromExtra(extra: Record<string, unknown>): SkillInjectMode {
@@ -1493,6 +1497,8 @@ export async function getLlmAgentRuntime(
 
   const toolsJsonOut = toolObjs.length > 0 ? JSON.stringify(toolObjs) : null;
 
+  const { memoryMode, memoryWindowTurns } = parseAgentMemoryFromExtra(extra);
+
   return {
     vendorKind,
     apiBaseUrl,
@@ -1507,6 +1513,8 @@ export async function getLlmAgentRuntime(
         ? toolImplementationStepsByFunctionName
         : undefined,
     mcpToolRouter: Object.keys(mcpToolRouter).length > 0 ? mcpToolRouter : undefined,
+    memoryMode,
+    memoryWindowTurns,
     extra: {
       temperature: typeof extra.temperature === 'number' ? extra.temperature : undefined,
       maxTokens: typeof extra.maxTokens === 'number' ? extra.maxTokens : undefined,

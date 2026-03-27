@@ -1,10 +1,12 @@
 import { flowProcessor } from '@/core';
 import { appendEventLog } from '@/lib/kv/kv-logs';
 import { getChatStore, storage } from '@/lib/persistence';
+import type { ChatMessage } from '@/lib/persistence/chat-store';
 import { getPlatformSettings } from '@/lib/platform-settings';
 import type { Bot } from '@/core/bot';
-import type { BotEvent } from '@/types';
+import type { BotEvent, MessageEvent } from '@/types';
 import { markWebhookFlowDedupeAfterSuccess } from '@/lib/webhook/webhook-flow-queue';
+import { messageTextFromMessageEvent, resolveChatMemoryPeer } from '@/lib/chat/chat-memory-peer';
 
 /** Webhook 收到消息事件时预热联系人/群组缓存（与面板一致） */
 export async function cacheWebhookChatDirectory(params: {
@@ -37,6 +39,37 @@ export async function cacheWebhookChatDirectory(params: {
   }
 }
 
+const INBOUND_CHAT_CAP_PRIVATE = 500;
+const INBOUND_CHAT_CAP_GROUP = 1000;
+
+/** 将入站用户消息写入 ChatStore，供 Agent 滑动窗口记忆与面板消息列表使用（幂等：同 messageId 重复插入会被忽略）。 */
+export async function appendInboundChatUserMessage(event: BotEvent): Promise<void> {
+  if (event.type !== 'message') return;
+  const me = event as MessageEvent;
+  const peer = resolveChatMemoryPeer(event);
+  if (!peer) return;
+  const text = messageTextFromMessageEvent(me);
+  if (!text.trim()) return;
+  const store = getChatStore();
+  const cap = me.subType === 'group' ? INBOUND_CHAT_CAP_GROUP : INBOUND_CHAT_CAP_PRIVATE;
+  const message: ChatMessage = {
+    id: me.messageId || me.id,
+    role: 'user',
+    text,
+    timestamp: me.timestamp,
+    peerId: peer.peerId,
+    peerType: peer.peerType,
+  };
+  await store.appendMessage({
+    platform: peer.platform,
+    botId: peer.botId,
+    peerId: peer.peerId,
+    peerType: peer.peerType,
+    message,
+    cap,
+  });
+}
+
 /** 加载快照并执行 Flow + 事件日志（Webhook 同步路径与异步 worker 共用） */
 export async function runWebhookFlowPipeline(params: {
   platform: string;
@@ -48,6 +81,12 @@ export async function runWebhookFlowPipeline(params: {
   const { platform, botId, event, bot, traceId } = params;
   const owner = bot.ownerId ?? null;
   const { flows, jobs, triggers } = await storage.getWebhookFlowRuntimeSnapshot(owner);
+
+  try {
+    await appendInboundChatUserMessage(event);
+  } catch (e) {
+    console.warn(`[trace:${traceId}] [Webhook] appendInboundChatUserMessage failed`, e);
+  }
 
   const results = await flowProcessor.process(event, bot, { flows, jobs, triggers }, { traceId });
 

@@ -283,7 +283,50 @@
     "healthSchedules": "定时任务",
     "quickSandbox": "对话",
     "quickDocs": "查看文档",
-    "quickOnboarding": "新手引导"
+    "quickOnboarding": "新手引导",
+    "serverOverview": {
+      "title": "服务器概况",
+      "desc": "进程与数据层快照（无密钥）；内存为渲染本页时瞬时采样，Serverless 下每次请求实例可能不同。",
+      "ctaUpgrade": "更新",
+      "rowRuntime": "运行环境",
+      "rowMemory": "内存",
+      "memoryUnavailable": "不可用",
+      "memoryCompact": "堆 {heap} MB · RSS {rss} MB · 外部 {ext} MB",
+      "rowNode": "Node 版本",
+      "memoryHeapLine": "堆 {used}/{total} MB",
+      "memoryRssLine": "RSS {mb} MB",
+      "memoryExternalLine": "外部 {mb} MB",
+      "memoryArrayBuffersLine": "ArrayBuffer {mb} MB",
+      "rowEnv": "运行模式",
+      "rowSqlEngine": "主库",
+      "rowSqlDialect": "SQL 方言",
+      "rowKv": "KV",
+      "rowPublicUrl": "URL",
+      "rowInstallPhase": "安装",
+      "rowLastMigration": "迁移",
+      "unset": "—",
+      "migrationNone": "暂无",
+      "mysqlMigrationRow": "MySQL：见 migrations/mysql",
+      "engine": {
+        "libsql": "libSQL",
+        "nodejs-sqlite": "Node.js SQLite",
+        "mysql": "MySQL"
+      },
+      "kvKind": {
+        "redis-rest": "Redis（REST）",
+        "memory": "内存（开发）"
+      },
+      "phase": {
+        "no_database": "未配置数据库",
+        "needs_install": "待首次安装",
+        "needs_upgrade": "有待应用迁移",
+        "installed": "就绪"
+      },
+      "dialect": {
+        "sqlite": "SQLite",
+        "mysql": "MySQL"
+      }
+    }
   },
   "HomePage": {
     "title": "Serverless Bot",
@@ -293,7 +336,7 @@
     "heroHighlight": "几分钟创建账号，先在对话里试跑消息流再接到真实平台也可以。",
     "heroTrust": "注册后可保存配置、协作管理权限，并在生产 Webhook 与控制台之间无缝切换。",
     "ctaSignIn": "登录",
-    "ctaSignUp": "免费注册",
+    "ctaSignUp": "注册",
     "ctaDashboard": "进入控制台",
     "ctaDocs": "文档",
     "stat1Value": "7+",
@@ -786,6 +829,14 @@
     "injectNoneEdit": "不注入（仅步骤指定 id）",
     "injectFootnoteNew": "写入 extra_json.skillInject；也可在下方「额外参数 extra」里手写覆盖（保存时会与下拉合并为同一字段）。",
     "injectFootnoteEdit": "与 extra_json 中的 skillInject 同步；保存时下拉值会写入该字段。",
+    "sectionMemory": "对话记忆",
+    "memoryHintNew": "按会话（私聊对端 / 群聊）从消息存储里取最近若干轮用户与助手正文，拼入模型请求。依赖平台事件能解析出会话维度；关闭则仅本步用户提示参与请求。",
+    "memoryHintEdit": "与 extra_json 中的 memoryMode、memoryWindowTurns 同步；Webhook 入站与会话回复会写入同一消息流以便滑窗读取。",
+    "labelMemoryMode": "记忆策略",
+    "memoryModeNone": "不记忆（仅当前消息）",
+    "memoryModeSliding": "滑动窗口（推荐）",
+    "labelMemoryWindowTurns": "参与轮数上限",
+    "memoryWindowFootnote": "一轮 = 用户一条 + 助手一条；默认 5 轮（约 10 条消息），最大 50。仅对「滑动窗口」生效。",
     "sectionTools": "关联工具",
     "toolsHintNew": "每条为 OpenAI tools 中的一项；与下方 MCP 工具合并后发给模型；模型返回的 tool 调用在流程里执行（自建工具与 MCP 同名时优先自建）。",
     "toolsHintEdit": "与下方 MCP 工具合并进请求；同名时优先使用自建工具。",

@@ -141,34 +141,21 @@ export async function HomeLanding({
                 <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
                   <Link href="/sign-in">{t('ctaSignIn')}</Link>
                 </Button>
-                {registrationEnabled ? (
+                {registrationEnabled && (
                   <Button asChild size="sm" className="shadow-surface-sm">
                     <Link href="/sign-up">
-                      <UserPlus className="size-3.5 sm:mr-1" aria-hidden />
                       <span className="hidden sm:inline">{t('ctaSignUp')}</span>
                     </Link>
-                  </Button>
-                ) : (
-                  <Button asChild size="sm" className="shadow-surface-sm">
-                    <Link href="/sign-in">{t('ctaSignIn')}</Link>
                   </Button>
                 )}
               </>
             ) : (
               <Button asChild size="sm" variant="secondary">
                 <Link href="/dashboard">
-                  <LayoutDashboard className="size-3.5 sm:mr-1" aria-hidden />
                   <span className="hidden sm:inline">{t('ctaDashboard')}</span>
                 </Link>
               </Button>
             )}
-            <span className="hidden h-4 w-px bg-border sm:block" aria-hidden />
-            <Link
-              href="/docs"
-              className="hidden rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:inline-flex sm:text-sm"
-            >
-              {t('ctaDocs')}
-            </Link>
           </div>
         </div>
       </header>
@@ -185,41 +172,6 @@ export async function HomeLanding({
             <p className="mx-auto mt-3 max-w-lg text-xs font-medium text-primary/90 lg:mx-0 sm:text-sm">{t('heroHighlight')}</p>
 
             <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:justify-start">
-              {signedIn ? (
-                <Button asChild size="lg" className="h-12 min-w-[11rem] shadow-surface-md">
-                  <Link href="/dashboard">
-                    <LayoutDashboard className="size-4" aria-hidden />
-                    {t('ctaDashboard')}
-                    <ArrowRight className="size-4 opacity-80" aria-hidden />
-                  </Link>
-                </Button>
-              ) : (
-                <>
-                  {registrationEnabled ? (
-                    <Button asChild size="lg" className="h-12 min-w-[11rem] shadow-surface-md">
-                      <Link href="/sign-up">
-                        <UserPlus className="size-4" aria-hidden />
-                        {t('ctaSignUp')}
-                        <ArrowRight className="size-4 opacity-80" aria-hidden />
-                      </Link>
-                    </Button>
-                  ) : null}
-                  <Button
-                    asChild
-                    size="lg"
-                    variant={registrationEnabled ? 'outline' : 'default'}
-                    className={cn(
-                      'h-12 min-w-[11rem] border-border/80 bg-background/60 backdrop-blur-sm',
-                      !registrationEnabled && 'shadow-surface-md',
-                    )}
-                  >
-                    <Link href="/sign-in">
-                      <LogIn className="size-4" aria-hidden />
-                      {t('ctaSignIn')}
-                    </Link>
-                  </Button>
-                </>
-              )}
               <Button
                 asChild
                 variant="ghost"
@@ -315,15 +267,13 @@ export async function HomeLanding({
               description={t('cardSandboxDesc')}
               cta={t('cardCta')}
             />
-          </div>
-          <div className="mt-4">
             <FeatureCard
               href="/docs"
               icon={Bot}
               title={t('cardDocsTitle')}
               description={t('cardDocsDesc')}
               cta={t('cardCta')}
-              className="border-dashed border-primary/20 bg-primary/[0.03]"
+              className="sm:col-span-2 lg:col-span-3 border-dashed border-primary/30"
             />
           </div>
         </section>

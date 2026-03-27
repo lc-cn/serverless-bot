@@ -1,6 +1,9 @@
-import type { FlowAction, Step } from '@/types';
+import type { FlowAction, MessageEvent, Step } from '@/types';
 import { buildLlmAgentPromptSysVars } from '@/lib/llm/agent-prompt-sys';
-import { storage } from '@/lib/persistence';
+import { chatStoreRowsToSlidingLlmHistory } from '@/lib/chat/sliding-llm-history';
+import { resolveChatMemoryPeer } from '@/lib/chat/chat-memory-peer';
+import { getChatStore, storage } from '@/lib/persistence';
+import type { ChatMessage as UiChatMessage } from '@/lib/persistence/chat-store';
 import { getLlmAdapter } from '@/llm/registry';
 import type { ChatMessage } from '@/llm/types';
 import type { JobContext } from '../types';
@@ -120,6 +123,40 @@ export async function executeLlmAgent(
   if (systemContent.trim()) {
     messages.push({ role: 'system', content: systemContent });
   }
+
+  if (runtime.memoryMode === 'sliding_window') {
+    const peer = resolveChatMemoryPeer(context.event);
+    if (peer) {
+      const maxUi = Math.max(2, runtime.memoryWindowTurns * 2);
+      try {
+        const store = getChatStore();
+        const raw = await store.listMessages({
+          platform: peer.platform,
+          botId: peer.botId,
+          peerType: peer.peerType,
+          peerId: peer.peerId,
+          limit: maxUi + 16,
+          offset: 0,
+        });
+        const excludeMessageIds = new Set<string>();
+        if (context.event.type === 'message') {
+          const me = context.event as MessageEvent;
+          if (me.messageId) excludeMessageIds.add(me.messageId);
+          if (me.id) excludeMessageIds.add(me.id);
+        }
+        const hist = chatStoreRowsToSlidingLlmHistory(raw, {
+          maxUiMessages: maxUi,
+          excludeMessageIds,
+        });
+        for (const h of hist) {
+          messages.push(h);
+        }
+      } catch (e) {
+        console.warn('[llm_agent] load chat history failed', e);
+      }
+    }
+  }
+
   messages.push({ role: 'user', content: userContent || '(empty user prompt)' });
 
   let tools: unknown[] | undefined;
@@ -224,6 +261,35 @@ export async function executeLlmAgent(
         });
       }
       messages.push({ role: 'tool', tool_call_id: tc.id, content: payload });
+    }
+  }
+
+  if (runtime.memoryMode === 'sliding_window' && lastContent.trim()) {
+    const peer = resolveChatMemoryPeer(context.event);
+    if (peer) {
+      try {
+        const store = getChatStore();
+        const sub = context.event.type === 'message' ? (context.event as MessageEvent).subType : null;
+        const cap = sub === 'group' ? 1000 : 500;
+        const botMsg: UiChatMessage = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          role: 'bot',
+          text: lastContent,
+          timestamp: Date.now(),
+          peerId: peer.peerId,
+          peerType: peer.peerType,
+        };
+        await store.appendMessage({
+          platform: peer.platform,
+          botId: peer.botId,
+          peerId: peer.peerId,
+          peerType: peer.peerType,
+          message: botMsg,
+          cap,
+        });
+      } catch (e) {
+        console.warn('[llm_agent] persist assistant reply for memory', e);
+      }
     }
   }
 

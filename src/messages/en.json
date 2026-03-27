@@ -283,7 +283,50 @@
     "healthSchedules": "Schedules",
     "quickSandbox": "Chat",
     "quickDocs": "Documentation",
-    "quickOnboarding": "Getting started"
+    "quickOnboarding": "Getting started",
+    "serverOverview": {
+      "title": "Server overview",
+      "desc": "Process & data layer (no secrets). Memory is sampled when this page renders; Serverless may use a different instance per request.",
+      "ctaUpgrade": "Upgrade",
+      "rowRuntime": "Runtime",
+      "rowMemory": "Memory",
+      "memoryUnavailable": "N/A",
+      "memoryCompact": "Heap {heap} MB · RSS {rss} MB · Ext {ext} MB",
+      "rowNode": "Node version",
+      "memoryHeapLine": "Heap {used}/{total} MB",
+      "memoryRssLine": "RSS {mb} MB",
+      "memoryExternalLine": "External {mb} MB",
+      "memoryArrayBuffersLine": "ArrayBuffer {mb} MB",
+      "rowEnv": "Environment",
+      "rowSqlEngine": "SQL",
+      "rowSqlDialect": "SQL dialect",
+      "rowKv": "KV",
+      "rowPublicUrl": "URL",
+      "rowInstallPhase": "Install",
+      "rowLastMigration": "Migration",
+      "unset": "—",
+      "migrationNone": "None",
+      "mysqlMigrationRow": "MySQL: see migrations/mysql",
+      "engine": {
+        "libsql": "libSQL",
+        "nodejs-sqlite": "Node.js SQLite",
+        "mysql": "MySQL"
+      },
+      "kvKind": {
+        "redis-rest": "Redis (REST)",
+        "memory": "In-memory (dev)"
+      },
+      "phase": {
+        "no_database": "Database not configured",
+        "needs_install": "Needs first-time install",
+        "needs_upgrade": "Pending migrations",
+        "installed": "Ready"
+      },
+      "dialect": {
+        "sqlite": "SQLite",
+        "mysql": "MySQL"
+      }
+    }
   },
   "HomePage": {
     "title": "Serverless Bot",
@@ -293,7 +336,7 @@
     "heroHighlight": "Create an account in minutes and try message-driven flows in chat before you wire a real bot.",
     "heroTrust": "Signing up lets you persist configs, collaborate with RBAC, and move from testing to production webhooks when you're ready.",
     "ctaSignIn": "Sign in",
-    "ctaSignUp": "Sign up free",
+    "ctaSignUp": "Sign up",
     "ctaDashboard": "Open dashboard",
     "ctaDocs": "Documentation",
     "stat1Value": "7+",
@@ -786,6 +829,14 @@
     "injectNoneEdit": "None (step-specified id only)",
     "injectFootnoteNew": "Written to extra_json.skillInject; you can also override in “Extra JSON” below (merged on save).",
     "injectFootnoteEdit": "Synced with skillInject in extra_json; the select value is written there on save.",
+    "sectionMemory": "Conversation memory",
+    "memoryHintNew": "Per session (DM peer or group), recent user/assistant text is loaded from the chat store and prepended to the model request. Requires events to resolve a session; if off, only this step’s user prompt is sent.",
+    "memoryHintEdit": "Synced with extra_json memoryMode / memoryWindowTurns; inbound webhook traffic and assistant replies append to the same stream for sliding-window reads.",
+    "labelMemoryMode": "Memory mode",
+    "memoryModeNone": "None (current message only)",
+    "memoryModeSliding": "Sliding window (default)",
+    "labelMemoryWindowTurns": "Max turns to include",
+    "memoryWindowFootnote": "One turn = one user + one assistant message. Default 5 turns (~10 lines), max 50. Applies only to sliding window.",
     "sectionTools": "Tools",
     "toolsHintNew": "Each row is one OpenAI tool; merged with MCP tools for the model. Tool calls run in the flow; self-hosted tools win over MCP on name clash.",
     "toolsHintEdit": "Merged with MCP in the request; self-hosted tools take precedence when names collide.",
