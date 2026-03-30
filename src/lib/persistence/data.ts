@@ -660,7 +660,6 @@ function mapUserRow(row: Record<string, unknown>, roleIds: string[]): User {
     email: row.email != null && String(row.email) !== '' ? String(row.email) : undefined,
     name: String(row.name),
     image: row.image != null && String(row.image) !== '' ? String(row.image) : undefined,
-    githubId: row.github_id != null && String(row.github_id) !== '' ? String(row.github_id) : undefined,
     isActive: row.is_active === 1,
     emailVerified: row.email_verified != null ? String(row.email_verified) : undefined,
     roleIds,
@@ -758,21 +757,49 @@ export async function authenticateLocalCredentials(
   return mapUserRow(row, roles.map((r: { role_id: string }) => r.role_id));
 }
 
-export async function getUserByGithubId(githubId: string): Promise<User | null> {
-  let row = await db.queryOne<any>(
+/** 按 oauth_accounts 解析用户（唯一可信来源，便于扩展任意 OAuth provider） */
+export async function getUserByOAuthProvider(
+  provider: string,
+  providerAccountId: string,
+): Promise<User | null> {
+  const row = await db.queryOne<any>(
     `SELECT u.* FROM users u
      INNER JOIN oauth_accounts o ON o.user_id = u.id
-     WHERE o.provider = 'github' AND o.provider_account_id = ?`,
-    [githubId],
+     WHERE o.provider = ? AND o.provider_account_id = ?`,
+    [provider, providerAccountId],
   );
-  if (!row) {
-    row = await db.queryOne<any>('SELECT * FROM users WHERE github_id = ?', [githubId]);
-  }
   if (!row) return null;
 
   const roles = await db.query<any>('SELECT role_id FROM user_roles WHERE user_id = ?', [row.id]);
 
   return mapUserRow(row, roles.map((r: { role_id: string }) => r.role_id));
+}
+
+export async function getUserByGithubId(githubId: string): Promise<User | null> {
+  return getUserByOAuthProvider('github', githubId);
+}
+
+export async function getUserByGitlabId(gitlabId: string): Promise<User | null> {
+  return getUserByOAuthProvider('gitlab', gitlabId);
+}
+
+/** 批量查询用户已绑定的 OAuth provider 名（如 github、gitlab） */
+export async function listOAuthProvidersByUserIds(userIds: string[]): Promise<Map<string, Set<string>>> {
+  const uniq = [...new Set(userIds.filter(Boolean))];
+  const map = new Map<string, Set<string>>();
+  for (const id of uniq) map.set(id, new Set());
+  if (uniq.length === 0) return map;
+
+  const placeholders = uniq.map(() => '?').join(',');
+  const rows = await db.query<{ user_id: string; provider: string }>(
+    `SELECT user_id, provider FROM oauth_accounts WHERE user_id IN (${placeholders})`,
+    uniq,
+  );
+  for (const r of rows) {
+    const s = map.get(r.user_id);
+    if (s) s.add(r.provider);
+  }
+  return map;
 }
 
 export type OAuthAccountRow = {
@@ -875,13 +902,6 @@ export async function linkOAuthAccount(params: {
       now,
     ],
   );
-  if (params.provider === 'github') {
-    await db.execute('UPDATE users SET github_id = ?, updated_at = ? WHERE id = ?', [
-      params.providerAccountId,
-      now,
-      params.userId,
-    ]);
-  }
   const acc = await getOAuthAccount(params.provider, params.providerAccountId);
   if (!acc) throw new Error('linkOAuthAccount: insert failed');
   return acc;
@@ -894,29 +914,26 @@ export async function unlinkOAuthAccount(accountId: string, userId: string): Pro
   );
   if (!row) return false;
   await db.execute('DELETE FROM oauth_accounts WHERE id = ? AND user_id = ?', [accountId, userId]);
-  if (row.provider === 'github') {
-    const now = new Date().toISOString();
-    await db.execute('UPDATE users SET github_id = NULL, updated_at = ? WHERE id = ?', [
-      now,
-      userId,
-    ]);
-  }
   return true;
 }
 
-export async function createUser(userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
+export type CreateUserInput = Omit<User, 'id' | 'createdAt' | 'updatedAt'> & {
+  /** 注册成功后写入 oauth_accounts（任意 provider 字符串，与 NextAuth provider id 一致即可） */
+  oauthLinks?: { provider: string; providerAccountId: string; email?: string }[];
+};
+
+export async function createUser(userData: CreateUserInput): Promise<User> {
   const userId = generateId();
   const now = new Date().toISOString();
 
   await db.execute(
-    `INSERT INTO users (id, email, name, image, github_id, username, password_hash, is_active, email_verified, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO users (id, email, name, image, username, password_hash, is_active, email_verified, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       userId,
       userData.email ?? null,
       userData.name,
       userData.image || null,
-      userData.githubId || null,
       userData.username ?? null,
       userData.passwordHash ?? null,
       userData.isActive ? 1 : 0,
@@ -930,14 +947,14 @@ export async function createUser(userData: Omit<User, 'id' | 'createdAt' | 'upda
     await db.execute('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)', [userId, roleId]);
   }
 
-  if (userData.githubId) {
-    const existingGh = await getOAuthAccount('github', userData.githubId);
-    if (!existingGh) {
+  for (const link of userData.oauthLinks ?? []) {
+    const existing = await getOAuthAccount(link.provider, link.providerAccountId);
+    if (!existing) {
       await linkOAuthAccount({
         userId,
-        provider: 'github',
-        providerAccountId: userData.githubId,
-        email: userData.email,
+        provider: link.provider,
+        providerAccountId: link.providerAccountId,
+        email: link.email ?? userData.email,
       });
     }
   }
@@ -956,7 +973,6 @@ export async function updateUser(id: string, updates: Partial<User>): Promise<Us
   if ('email' in updates) { fields.push('email = ?'); values.push(updates.email); }
   if ('username' in updates) { fields.push('username = ?'); values.push(updates.username ?? null); }
   if ('image' in updates) { fields.push('image = ?'); values.push(updates.image); }
-  if ('githubId' in updates) { fields.push('github_id = ?'); values.push(updates.githubId); }
   if ('passwordHash' in updates) {
     fields.push('password_hash = ?');
     values.push(updates.passwordHash ?? null);

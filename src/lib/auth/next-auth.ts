@@ -1,8 +1,10 @@
 import NextAuth from 'next-auth';
-import type { NextAuthConfig } from 'next-auth';
+import type { NextAuthConfig, User as NextAuthUser } from 'next-auth';
 import { cookies } from 'next/headers';
 import { routing } from '@/i18n/routing';
 import GitHub from 'next-auth/providers/github';
+import Google from 'next-auth/providers/google';
+import GitLab from 'next-auth/providers/gitlab';
 import Credentials from 'next-auth/providers/credentials';
 import { getUserPermissions, initializeRBAC, storage } from '@/lib/persistence';
 import { getAuthSettings } from './auth-settings';
@@ -34,7 +36,158 @@ export async function userToAuthUser(user: AppUser) {
   };
 }
 
-const LINK_GITHUB_COOKIE = 'oauth_link_github_uid';
+const LINK_OAUTH_COOKIES = {
+  github: 'oauth_link_github_uid',
+  google: 'oauth_link_google_uid',
+  gitlab: 'oauth_link_gitlab_uid',
+} as const;
+
+type OauthProviderId = keyof typeof LINK_OAUTH_COOKIES;
+
+function normalizeGitlabBaseUrl(raw?: string): string {
+  const fallback = 'https://gitlab.com';
+  const t = raw?.trim();
+  if (!t) return fallback;
+  return t.replace(/\/+$/, '') || fallback;
+}
+
+function oauthProfileFields(provider: OauthProviderId, profile: Record<string, unknown>) {
+  if (provider === 'google') {
+    const externalId =
+      profile.sub != null
+        ? String(profile.sub)
+        : profile.id != null
+          ? String(profile.id)
+          : undefined;
+    const email = profile.email as string | undefined;
+    return {
+      externalId,
+      displayName:
+        (profile.name as string) ||
+        (email ? email.split('@')[0] : undefined) ||
+        'Google User',
+      image: (profile.picture as string | undefined) || (profile.image as string | undefined),
+      email,
+    };
+  }
+
+  const externalId = profile.id != null ? String(profile.id) : undefined;
+  if (provider === 'github') {
+    return {
+      externalId,
+      displayName:
+        (profile.name as string) || (profile.login as string) || 'GitHub User',
+      image: (profile.avatar_url as string | undefined) || (profile.image as string | undefined),
+      email: profile.email as string | undefined,
+    };
+  }
+  return {
+    externalId,
+    displayName:
+      (profile.name as string) ||
+      (profile.username as string) ||
+      (profile.login as string) ||
+      'GitLab User',
+    image: (profile.avatar_url as string | undefined) || (profile.image as string | undefined),
+    email: profile.email as string | undefined,
+  };
+}
+
+async function lookupUserByOAuthId(provider: OauthProviderId, externalId: string) {
+  return storage.getUserByOAuthProvider(provider, externalId);
+}
+
+async function handleOAuthAccountSignIn(
+  provider: OauthProviderId,
+  args: { user: NextAuthUser; profile: unknown },
+): Promise<boolean> {
+  await initializeRBAC();
+  const settings = await getAuthSettings();
+  const cfg = settings.providers[provider];
+  if (!cfg.enabled) return false;
+
+  const dbCreds = !!(cfg.clientId?.trim() && cfg.clientSecret?.trim());
+  if (!dbCreds) return false;
+
+  const raw = (args.profile || {}) as Record<string, unknown>;
+  const p = oauthProfileFields(provider, raw);
+  if (!p.externalId) return false;
+
+  const cookieStore = await cookies();
+  const linkCookie = LINK_OAUTH_COOKIES[provider];
+  const linkUid = cookieStore.get(linkCookie)?.value;
+  cookieStore.delete(linkCookie);
+
+  let existingUser = await lookupUserByOAuthId(provider, p.externalId);
+
+  if (!existingUser && linkUid) {
+    if (!cfg.allowBind) return false;
+    const target = await storage.getUser(linkUid);
+    if (!target?.isActive) return false;
+    const dup = await storage.getOAuthAccount(provider, p.externalId);
+    if (dup && dup.userId !== linkUid) return false;
+    if (dup) {
+      existingUser = await storage.getUser(dup.userId);
+    }
+    if (!existingUser) {
+      await storage.linkOAuthAccount({
+        userId: linkUid,
+        provider,
+        providerAccountId: p.externalId,
+        email: p.email,
+      });
+      existingUser = await storage.getUser(linkUid);
+    }
+  }
+
+  if (!existingUser && p.email) {
+    const byEmail = await storage.getUserByEmail(p.email);
+    if (byEmail) {
+      if (!byEmail.isActive) return false;
+      const dupOAuth = await storage.getOAuthAccount(provider, p.externalId);
+      if (dupOAuth && dupOAuth.userId !== byEmail.id) return false;
+      if (!dupOAuth) {
+        await storage.linkOAuthAccount({
+          userId: byEmail.id,
+          provider,
+          providerAccountId: p.externalId,
+          email: p.email,
+        });
+      }
+      existingUser = await storage.getUser(byEmail.id);
+    }
+  }
+
+  if (!existingUser) {
+    if (!cfg.allowSignup) {
+      return false;
+    }
+    const isFirst = (await storage.countUsers()) === 0;
+    existingUser = await storage.createUser({
+      name: p.displayName,
+      email: p.email,
+      image: p.image,
+      oauthLinks: [{ provider, providerAccountId: p.externalId, email: p.email }],
+      roleIds: isFirst ? [SYSTEM_ROLES.SUPER_ADMIN.id] : [SYSTEM_ROLES.VIEWER.id],
+      isActive: true,
+    });
+  }
+
+  if (!existingUser?.isActive) return false;
+
+  await storage.updateUser(existingUser.id, {
+    lastLoginAt: new Date().toISOString(),
+    image: p.image,
+    name: p.displayName || existingUser.name,
+  });
+
+  const ext = args.user as ExtendedJWT;
+  ext.id = existingUser.id;
+  ext.roleIds = existingUser.roleIds;
+  ext.permissions = await getUserPermissions(existingUser.id);
+
+  return true;
+}
 
 /** 密码 / Passkey（不依赖 OAuth 应用配置） */
 const coreProviders: NextAuthConfig['providers'] = [
@@ -83,13 +236,26 @@ async function buildProviders(): Promise<NextAuthConfig['providers']> {
   const providers: NextAuthConfig['providers'] = [];
   try {
     const settings = await getAuthSettings();
-    const cid = settings.providers.github.clientId?.trim();
-    const csec = settings.providers.github.clientSecret?.trim();
-    if (cid && csec) {
-      providers.push(GitHub({ clientId: cid, clientSecret: csec }));
+    const ghCid = settings.providers.github.clientId?.trim();
+    const ghSec = settings.providers.github.clientSecret?.trim();
+    if (ghCid && ghSec) {
+      providers.push(GitHub({ clientId: ghCid, clientSecret: ghSec }));
+    }
+
+    const goCid = settings.providers.google.clientId?.trim();
+    const goSec = settings.providers.google.clientSecret?.trim();
+    if (goCid && goSec) {
+      providers.push(Google({ clientId: goCid, clientSecret: goSec }));
+    }
+
+    const glCid = settings.providers.gitlab.clientId?.trim();
+    const glSec = settings.providers.gitlab.clientSecret?.trim();
+    if (glCid && glSec) {
+      const baseUrl = normalizeGitlabBaseUrl(settings.providers.gitlab.baseUrl);
+      providers.push(GitLab({ clientId: glCid, clientSecret: glSec, baseUrl }));
     }
   } catch (e) {
-    console.warn('[auth] 无法从数据库加载 GitHub OAuth 配置，已跳过 GitHub 登录：', e);
+    console.warn('[auth] 无法从数据库加载 OAuth 配置，已跳过 GitHub/Google/GitLab 登录：', e);
   }
   providers.push(...coreProviders);
   return providers;
@@ -98,98 +264,13 @@ async function buildProviders(): Promise<NextAuthConfig['providers']> {
 const sharedCallbacks: NextAuthConfig['callbacks'] = {
   async signIn({ user, account, profile }) {
     if (account?.provider === 'github') {
-      await initializeRBAC();
-      const settings = await getAuthSettings();
-      if (!settings.providers.github.enabled) return false;
-
-      const dbCreds = !!(
-        settings.providers.github.clientId?.trim() && settings.providers.github.clientSecret?.trim()
-      );
-      if (!dbCreds) return false;
-
-      const githubId = (profile as Record<string, unknown>)?.id?.toString();
-      if (!githubId) return false;
-
-      const cookieStore = await cookies();
-      const linkUid = cookieStore.get(LINK_GITHUB_COOKIE)?.value;
-      cookieStore.delete(LINK_GITHUB_COOKIE);
-
-      let existingUser = await storage.getUserByGithubId(githubId);
-
-      if (!existingUser && linkUid) {
-        if (!settings.providers.github.allowBind) return false;
-        const target = await storage.getUser(linkUid);
-        if (!target?.isActive) return false;
-        const dup = await storage.getOAuthAccount('github', githubId);
-        if (dup && dup.userId !== linkUid) return false;
-        if (dup) {
-          existingUser = await storage.getUser(dup.userId);
-        }
-        if (existingUser) {
-          /* 已绑定，继续走下方更新 */
-        } else {
-          await storage.linkOAuthAccount({
-            userId: linkUid,
-            provider: 'github',
-            providerAccountId: githubId,
-            email: (profile?.email as string | undefined) ?? undefined,
-          });
-          existingUser = await storage.getUser(linkUid);
-        }
-      }
-
-      if (!existingUser) {
-        const email = profile?.email as string | undefined;
-        if (email) {
-          const byEmail = await storage.getUserByEmail(email);
-          if (byEmail) {
-            if (!byEmail.isActive) return false;
-            const dupGh = await storage.getOAuthAccount('github', githubId);
-            if (dupGh && dupGh.userId !== byEmail.id) return false;
-            if (!dupGh) {
-              await storage.linkOAuthAccount({
-                userId: byEmail.id,
-                provider: 'github',
-                providerAccountId: githubId,
-                email,
-              });
-            }
-            existingUser = await storage.getUser(byEmail.id);
-          }
-        }
-      }
-
-      if (!existingUser) {
-        if (!settings.providers.github.allowSignup) {
-          return false;
-        }
-        const isFirst = (await storage.countUsers()) === 0;
-        const githubProfile = profile as Record<string, unknown>;
-        const newEmail = profile?.email as string | undefined;
-        existingUser = await storage.createUser({
-          name: (githubProfile?.name as string) || (githubProfile?.login as string) || 'GitHub User',
-          email: newEmail,
-          image: githubProfile?.avatar_url as string,
-          githubId,
-          roleIds: isFirst ? [SYSTEM_ROLES.SUPER_ADMIN.id] : [SYSTEM_ROLES.VIEWER.id],
-          isActive: true,
-        });
-      }
-
-      if (!existingUser?.isActive) return false;
-
-      const githubProfile = profile as Record<string, unknown>;
-      await storage.updateUser(existingUser.id, {
-        lastLoginAt: new Date().toISOString(),
-        image: githubProfile?.avatar_url as string,
-        name: (githubProfile?.name as string) || existingUser.name,
-      });
-
-      (user as ExtendedJWT).id = existingUser.id;
-      (user as ExtendedJWT).roleIds = existingUser.roleIds;
-      (user as ExtendedJWT).permissions = await getUserPermissions(existingUser.id);
-
-      return true;
+      return handleOAuthAccountSignIn('github', { user, profile });
+    }
+    if (account?.provider === 'google') {
+      return handleOAuthAccountSignIn('google', { user, profile });
+    }
+    if (account?.provider === 'gitlab') {
+      return handleOAuthAccountSignIn('gitlab', { user, profile });
     }
 
     return true;

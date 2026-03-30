@@ -22,6 +22,8 @@ export async function GET(request: NextRequest, { params }: Params) {
     }
 
     const roles = await storage.getRoles();
+    const oauthByUser = await storage.listOAuthProvidersByUserIds([user.id]);
+    const providers = oauthByUser.get(user.id) ?? new Set<string>();
 
     return NextResponse.json({
       user: {
@@ -32,7 +34,9 @@ export async function GET(request: NextRequest, { params }: Params) {
         roleIds: user.roleIds,
         roles: user.roleIds.map((rid) => roles.find((r) => r.id === rid)).filter(Boolean),
         isActive: user.isActive,
-        hasGithub: !!user.githubId,
+        hasGithub: providers.has('github'),
+        hasGoogle: providers.has('google'),
+        hasGitlab: providers.has('gitlab'),
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         lastLoginAt: user.lastLoginAt,

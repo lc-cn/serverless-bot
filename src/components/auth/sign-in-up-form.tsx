@@ -8,12 +8,14 @@ import { useSearchParams } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Github, Loader2, Fingerprint } from 'lucide-react';
+import { Github, Gitlab, Chrome, Loader2, Fingerprint } from 'lucide-react';
 
 export type PublicAuthConfig = {
   registrationEnabled: boolean;
   passwordLoginEnabled: boolean;
   github: { enabled: boolean; allowBind: boolean; allowSignup: boolean };
+  google: { enabled: boolean; allowBind: boolean; allowSignup: boolean };
+  gitlab: { enabled: boolean; allowBind: boolean; allowSignup: boolean };
   passkey: { enabled: boolean; allowBind: boolean; allowSignup: boolean };
   databaseConfigured: boolean;
 };
@@ -22,6 +24,8 @@ const FALLBACK_CFG: PublicAuthConfig = {
   registrationEnabled: false,
   passwordLoginEnabled: true,
   github: { enabled: false, allowBind: true, allowSignup: true },
+  google: { enabled: false, allowBind: true, allowSignup: true },
+  gitlab: { enabled: false, allowBind: true, allowSignup: true },
   passkey: { enabled: false, allowBind: true, allowSignup: false },
   databaseConfigured: false,
 };
@@ -72,6 +76,28 @@ export function SignInForm() {
       await signIn('github', { callbackUrl });
     } catch {
       setError(tForm('errGithub'));
+      setLoading(null);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLoading('google');
+    setError(null);
+    try {
+      await signIn('google', { callbackUrl });
+    } catch {
+      setError(tForm('errGoogle'));
+      setLoading(null);
+    }
+  };
+
+  const handleGitlabSignIn = async () => {
+    setLoading('gitlab');
+    setError(null);
+    try {
+      await signIn('gitlab', { callbackUrl });
+    } catch {
+      setError(tForm('errGitlab'));
       setLoading(null);
     }
   };
@@ -211,7 +237,7 @@ export function SignInForm() {
 
           {cfg.passwordLoginEnabled &&
             cfg.databaseConfigured &&
-            (cfg.passkey.enabled || cfg.github.enabled) && (
+            (cfg.passkey.enabled || cfg.github.enabled || cfg.google.enabled || cfg.gitlab.enabled) && (
               <div className="relative py-2">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />
@@ -222,41 +248,88 @@ export function SignInForm() {
               </div>
             )}
 
-          {cfg.passkey.enabled && cfg.databaseConfigured && (
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={() => void handlePasskeySignIn()}
-              disabled={loading !== null}
-            >
-              {loading === 'passkey' ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Fingerprint className="mr-2 h-4 w-4" />
+          {(cfg.passkey.enabled && cfg.databaseConfigured) ||
+          cfg.github.enabled ||
+          cfg.google.enabled ||
+          cfg.gitlab.enabled ? (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {cfg.passkey.enabled && cfg.databaseConfigured && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-9 shrink-0 [&_svg]:size-[1.125rem]"
+                  aria-label={tForm('passkeySubmit')}
+                  title={tForm('passkeySubmit')}
+                  onClick={() => void handlePasskeySignIn()}
+                  disabled={loading !== null}
+                >
+                  {loading === 'passkey' ? (
+                    <Loader2 className="animate-spin" aria-hidden />
+                  ) : (
+                    <Fingerprint aria-hidden />
+                  )}
+                </Button>
               )}
-              {tForm('passkeySubmit')}
-            </Button>
-          )}
-
-          {cfg.github.enabled && (
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => void handleGithubSignIn()}
-              disabled={loading !== null}
-            >
-              {loading === 'github' ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Github className="mr-2 h-4 w-4" />
+              {cfg.github.enabled && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-9 shrink-0 [&_svg]:size-[1.125rem]"
+                  aria-label={tForm('github')}
+                  title={tForm('github')}
+                  onClick={() => void handleGithubSignIn()}
+                  disabled={loading !== null}
+                >
+                  {loading === 'github' ? (
+                    <Loader2 className="animate-spin" aria-hidden />
+                  ) : (
+                    <Github aria-hidden />
+                  )}
+                </Button>
               )}
-              {tForm('github')}
-            </Button>
-          )}
+              {cfg.google.enabled && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-9 shrink-0 [&_svg]:size-[1.125rem]"
+                  aria-label={tForm('google')}
+                  title={tForm('google')}
+                  onClick={() => void handleGoogleSignIn()}
+                  disabled={loading !== null}
+                >
+                  {loading === 'google' ? (
+                    <Loader2 className="animate-spin" aria-hidden />
+                  ) : (
+                    <Chrome aria-hidden />
+                  )}
+                </Button>
+              )}
+              {cfg.gitlab.enabled && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-9 shrink-0 [&_svg]:size-[1.125rem]"
+                  aria-label={tForm('gitlab')}
+                  title={tForm('gitlab')}
+                  onClick={() => void handleGitlabSignIn()}
+                  disabled={loading !== null}
+                >
+                  {loading === 'gitlab' ? (
+                    <Loader2 className="animate-spin" aria-hidden />
+                  ) : (
+                    <Gitlab aria-hidden />
+                  )}
+                </Button>
+              )}
+            </div>
+          ) : null}
         </div>
       </CardContent>
-      {cfg.registrationEnabled || cfg.github.enabled ? (
+      {cfg.registrationEnabled || cfg.github.enabled || cfg.google.enabled || cfg.gitlab.enabled ? (
         <CardFooter className="flex flex-col gap-3 border-t border-border/50 px-5 pb-6 pt-4 sm:px-6">
           {cfg.registrationEnabled ? (
             <div className="flex flex-col items-center gap-1 text-center text-xs text-muted-foreground sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-1 sm:text-sm">
@@ -269,9 +342,9 @@ export function SignInForm() {
               </Link>
             </div>
           ) : null}
-          {cfg.github.enabled ? (
-            <p className="text-center text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
-              {tForm('githubHint')}
+          {cfg.github.enabled || cfg.google.enabled || cfg.gitlab.enabled ? (
+            <p className="max-w-sm text-center text-[11px] leading-snug text-muted-foreground sm:text-xs">
+              {tForm('oauthFooterHint')}
             </p>
           ) : null}
         </CardFooter>

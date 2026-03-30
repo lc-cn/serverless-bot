@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Overlay } from '@/components/ui/overlay';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Trash2, Edit, Shield, Key, Github } from 'lucide-react';
+import { Plus, Trash2, Edit, Shield, Key, Github, Gitlab, Chrome } from 'lucide-react';
 import { Role } from '@/types/auth';
 
 interface UserInfo {
@@ -21,6 +21,8 @@ interface UserInfo {
   roles: string[];
   isActive: boolean;
   hasGithub: boolean;
+  hasGoogle: boolean;
+  hasGitlab: boolean;
   createdAt: string;
   lastLoginAt?: string;
 }
@@ -185,7 +187,13 @@ export function UserListClient({ initialUsers, roles }: UserListClientProps) {
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{user.name}</span>
                         {user.hasGithub && (
-                          <Github className="w-4 h-4 text-muted-foreground" />
+                          <Github className="w-4 h-4 text-muted-foreground" aria-hidden />
+                        )}
+                        {user.hasGoogle && (
+                          <Chrome className="w-4 h-4 text-muted-foreground" aria-hidden />
+                        )}
+                        {user.hasGitlab && (
+                          <Gitlab className="w-4 h-4 text-muted-foreground" aria-hidden />
                         )}
                       </div>
                       <div className="text-sm text-muted-foreground">

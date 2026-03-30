@@ -150,7 +150,7 @@ export const UserSchema = z.object({
   
   // 认证相关
   passwordHash: z.string().optional(), // 密码登录（可选）
-  githubId: z.string().optional(), // GitHub OAuth
+  /** OAuth 绑定见表 oauth_accounts，不在 users 上冗余 provider 列 */
 
   // RBAC
   roleIds: z.array(z.string()), // 角色ID列表

@@ -18,7 +18,9 @@ export default async function ProfilePage() {
   const roles = await storage.getRoles();
 
   const oauth = await storage.listOAuthAccountsForUser(userId);
-  const hasGithub = oauth.some((a) => a.provider === 'github') || !!user.githubId;
+  const hasGithub = oauth.some((a) => a.provider === 'github');
+  const hasGoogle = oauth.some((a) => a.provider === 'google');
+  const hasGitlab = oauth.some((a) => a.provider === 'gitlab');
   const creds = await listCredentialsForUser(userId);
 
   const userData = {
@@ -32,6 +34,8 @@ export default async function ProfilePage() {
       .map((rid) => roles.find((r) => r.id === rid)?.name)
       .filter((name): name is string => !!name),
     hasGithub,
+    hasGoogle,
+    hasGitlab,
   };
 
   const passkeys = creds.map((c) => ({

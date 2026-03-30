@@ -10,6 +10,24 @@ const providerGithubSchema = z.object({
   clientSecret: z.string().optional(),
 });
 
+const providerGitlabSchema = z.object({
+  enabled: z.boolean(),
+  allowBind: z.boolean(),
+  allowSignup: z.boolean(),
+  clientId: z.string().optional(),
+  clientSecret: z.string().optional(),
+  /** GitLab 实例根 URL，默认 https://gitlab.com；自建填 https://gitlab.example.com（勿尾斜杠） */
+  baseUrl: z.string().optional(),
+});
+
+const providerGoogleSchema = z.object({
+  enabled: z.boolean(),
+  allowBind: z.boolean(),
+  allowSignup: z.boolean(),
+  clientId: z.string().optional(),
+  clientSecret: z.string().optional(),
+});
+
 const providerPasskeySchema = z.object({
   enabled: z.boolean(),
   allowBind: z.boolean(),
@@ -50,6 +68,8 @@ export const authSettingsSchema = z.object({
   registrationEnabled: z.boolean(),
   providers: z.object({
     github: providerGithubSchema,
+    google: providerGoogleSchema,
+    gitlab: providerGitlabSchema,
     passkey: providerPasskeySchema,
   }),
   email: emailSettingsSchema,
@@ -69,6 +89,16 @@ export const DEFAULT_AUTH_SETTINGS: AuthSettings = {
   providers: {
     github: {
       enabled: true,
+      allowBind: true,
+      allowSignup: true,
+    },
+    google: {
+      enabled: false,
+      allowBind: true,
+      allowSignup: true,
+    },
+    gitlab: {
+      enabled: false,
       allowBind: true,
       allowSignup: true,
     },

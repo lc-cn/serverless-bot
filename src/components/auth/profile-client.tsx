@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, Github, Shield, Fingerprint, Loader2 } from 'lucide-react';
+import { LogOut, Github, Gitlab, Chrome, Shield, Fingerprint, Loader2 } from 'lucide-react';
 
 interface ProfileClientProps {
   user: {
@@ -19,6 +19,8 @@ interface ProfileClientProps {
     roleIds: string[];
     roles: string[];
     hasGithub: boolean;
+    hasGoogle: boolean;
+    hasGitlab: boolean;
   };
   passkeys: { id: string; deviceName: string | null; createdAt: string | null }[];
 }
@@ -33,6 +35,8 @@ export function ProfileClient({ user, passkeys: initialPasskeys }: ProfileClient
   const [busy, setBusy] = useState<string | null>(null);
   const [cfg, setCfg] = useState<{
     github: { enabled: boolean; allowBind: boolean };
+    google: { enabled: boolean; allowBind: boolean };
+    gitlab: { enabled: boolean; allowBind: boolean };
     passkey: { enabled: boolean; allowBind: boolean };
   } | null>(null);
 
@@ -56,7 +60,7 @@ export function ProfileClient({ user, passkeys: initialPasskeys }: ProfileClient
       try {
         const r = await fetch('/api/auth/public-config', { cache: 'no-store' });
         const d = await r.json();
-        setCfg({ github: d.github, passkey: d.passkey });
+        setCfg({ github: d.github, google: d.google, gitlab: d.gitlab, passkey: d.passkey });
       } catch {
         setCfg(null);
       }
@@ -82,6 +86,48 @@ export function ProfileClient({ user, passkeys: initialPasskeys }: ProfileClient
     setBusy('ghu');
     try {
       await fetch('/api/auth/oauth/github', { method: 'DELETE' });
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const bindGoogle = async () => {
+    setBusy('go');
+    try {
+      const r = await fetch('/api/auth/prepare-google-link', { method: 'POST' });
+      if (!r.ok) return;
+      await signIn('google', { callbackUrl: `/${locale}/profile` });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const unlinkGoogle = async () => {
+    setBusy('gou');
+    try {
+      await fetch('/api/auth/oauth/google', { method: 'DELETE' });
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const bindGitlab = async () => {
+    setBusy('gl');
+    try {
+      const r = await fetch('/api/auth/prepare-gitlab-link', { method: 'POST' });
+      if (!r.ok) return;
+      await signIn('gitlab', { callbackUrl: `/${locale}/profile` });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const unlinkGitlab = async () => {
+    setBusy('glu');
+    try {
+      await fetch('/api/auth/oauth/gitlab', { method: 'DELETE' });
       router.refresh();
     } finally {
       setBusy(null);
@@ -184,6 +230,64 @@ export function ProfileClient({ user, passkeys: initialPasskeys }: ProfileClient
                 <Button type="button" size="sm" variant="ghost" disabled={busy !== null} onClick={() => void unlinkGithub()}>
                   {busy === 'ghu' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {tProfile('unlinkGithub')}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 p-3 rounded-lg border sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <Chrome className="w-5 h-5" />
+              <div>
+                <div className="font-medium">Google</div>
+                <div className="text-sm text-muted-foreground">
+                  {user.hasGoogle ? tProfile('googleLinkedHint') : tProfile('googleNotLinkedHint')}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Badge variant={user.hasGoogle ? 'success' : 'secondary'}>
+                {user.hasGoogle ? tProfile('googleLinked') : tProfile('googleNotLinked')}
+              </Badge>
+              {cfg?.google.enabled && cfg.google.allowBind && !user.hasGoogle && (
+                <Button type="button" size="sm" variant="outline" disabled={busy !== null} onClick={() => void bindGoogle()}>
+                  {busy === 'go' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {tProfile('bindGoogle')}
+                </Button>
+              )}
+              {user.hasGoogle && (
+                <Button type="button" size="sm" variant="ghost" disabled={busy !== null} onClick={() => void unlinkGoogle()}>
+                  {busy === 'gou' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {tProfile('unlinkGoogle')}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 p-3 rounded-lg border sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <Gitlab className="w-5 h-5" />
+              <div>
+                <div className="font-medium">GitLab</div>
+                <div className="text-sm text-muted-foreground">
+                  {user.hasGitlab ? tProfile('gitlabLinkedHint') : tProfile('gitlabNotLinkedHint')}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Badge variant={user.hasGitlab ? 'success' : 'secondary'}>
+                {user.hasGitlab ? tProfile('gitlabLinked') : tProfile('gitlabNotLinked')}
+              </Badge>
+              {cfg?.gitlab.enabled && cfg.gitlab.allowBind && !user.hasGitlab && (
+                <Button type="button" size="sm" variant="outline" disabled={busy !== null} onClick={() => void bindGitlab()}>
+                  {busy === 'gl' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {tProfile('bindGitlab')}
+                </Button>
+              )}
+              {user.hasGitlab && (
+                <Button type="button" size="sm" variant="ghost" disabled={busy !== null} onClick={() => void unlinkGitlab()}>
+                  {busy === 'glu' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {tProfile('unlinkGitlab')}
                 </Button>
               )}
             </div>

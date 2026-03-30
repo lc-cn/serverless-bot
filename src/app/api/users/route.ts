@@ -10,21 +10,26 @@ export async function GET() {
   try {
     const users = await storage.getUsers();
     const roles = await storage.getRoles();
+    const oauthByUser = await storage.listOAuthProvidersByUserIds(users.map((u) => u.id));
 
-    // 返回安全的用户信息（不含密码和凭证详情）
-    const safeUsers = users.map((user) => ({
-      id: user.id,
-      name: user.name,
-      username: user.username,
-      email: user.email,
-      image: user.image,
-      roleIds: user.roleIds,
-      roles: user.roleIds.map((rid) => roles.find((r) => r.id === rid)?.name).filter(Boolean),
-      isActive: user.isActive,
-      hasGithub: !!user.githubId,
-      createdAt: user.createdAt,
-      lastLoginAt: user.lastLoginAt,
-    }));
+    const safeUsers = users.map((user) => {
+      const providers = oauthByUser.get(user.id) ?? new Set<string>();
+      return {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        image: user.image,
+        roleIds: user.roleIds,
+        roles: user.roleIds.map((rid) => roles.find((r) => r.id === rid)?.name).filter(Boolean),
+        isActive: user.isActive,
+        hasGithub: providers.has('github'),
+        hasGoogle: providers.has('google'),
+        hasGitlab: providers.has('gitlab'),
+        createdAt: user.createdAt,
+        lastLoginAt: user.lastLoginAt,
+      };
+    });
 
     return NextResponse.json({ users: safeUsers });
   } catch (error) {

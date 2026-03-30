@@ -25,6 +25,11 @@ export function AuthSettingsClient() {
 
   const [ghClientId, setGhClientId] = useState('');
   const [ghClientSecret, setGhClientSecret] = useState('');
+  const [goClientId, setGoClientId] = useState('');
+  const [goClientSecret, setGoClientSecret] = useState('');
+  const [glClientId, setGlClientId] = useState('');
+  const [glClientSecret, setGlClientSecret] = useState('');
+  const [glBaseUrl, setGlBaseUrl] = useState('');
   const [smtpPassword, setSmtpPassword] = useState('');
   const [testTo, setTestTo] = useState('');
   const [testSending, setTestSending] = useState(false);
@@ -40,6 +45,11 @@ export function AuthSettingsClient() {
         setSmtpPassword('');
         setGhClientId(d.settings?.providers?.github?.clientId ?? '');
         setGhClientSecret('');
+        setGoClientId(d.settings?.providers?.google?.clientId ?? '');
+        setGoClientSecret('');
+        setGlClientId(d.settings?.providers?.gitlab?.clientId ?? '');
+        setGlClientSecret('');
+        setGlBaseUrl(d.settings?.providers?.gitlab?.baseUrl ?? '');
       }
     } finally {
       setLoading(false);
@@ -68,6 +78,11 @@ export function AuthSettingsClient() {
       setSmtpPassword('');
       setGhClientId(d.settings?.providers?.github?.clientId ?? '');
       setGhClientSecret('');
+      setGoClientId(d.settings?.providers?.google?.clientId ?? '');
+      setGoClientSecret('');
+      setGlClientId(d.settings?.providers?.gitlab?.clientId ?? '');
+      setGlClientSecret('');
+      setGlBaseUrl(d.settings?.providers?.gitlab?.baseUrl ?? '');
       setMsg(t('saved'));
     } finally {
       setSaving(false);
@@ -128,6 +143,8 @@ export function AuthSettingsClient() {
   }
 
   const gh = settings.providers.github;
+  const goo = settings.providers.google;
+  const gl = settings.providers.gitlab;
   const pk = settings.providers.passkey;
 
   const saveGithubOAuth = () => {
@@ -136,6 +153,29 @@ export function AuthSettingsClient() {
         github: {
           clientId: ghClientId.trim() || null,
           ...(ghClientSecret.trim() ? { clientSecret: ghClientSecret.trim() } : {}),
+        },
+      },
+    });
+  };
+
+  const saveGoogleOAuth = () => {
+    void patch({
+      providers: {
+        google: {
+          clientId: goClientId.trim() || null,
+          ...(goClientSecret.trim() ? { clientSecret: goClientSecret.trim() } : {}),
+        },
+      },
+    });
+  };
+
+  const saveGitlabOAuth = () => {
+    void patch({
+      providers: {
+        gitlab: {
+          clientId: glClientId.trim() || null,
+          baseUrl: glBaseUrl.trim() || null,
+          ...(glClientSecret.trim() ? { clientSecret: glClientSecret.trim() } : {}),
         },
       },
     });
@@ -181,113 +221,273 @@ export function AuthSettingsClient() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t('githubTitle')}</CardTitle>
-          <CardDescription>{t('githubDesc')}</CardDescription>
+          <CardTitle>{t('oauthProvidersTitle')}</CardTitle>
+          <CardDescription>{t('oauthProvidersDesc')}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="ghe">{t('providerEnabled')}</Label>
-            <Switch
-              id="ghe"
-              checked={gh.enabled}
-              onCheckedChange={(v) =>
-                void patch({ providers: { github: { enabled: v } } })
-              }
-              disabled={saving}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="ghb">{t('allowBind')}</Label>
-            <Switch
-              id="ghb"
-              checked={gh.allowBind}
-              onCheckedChange={(v) =>
-                void patch({ providers: { github: { allowBind: v } } })
-              }
-              disabled={saving}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="ghs">{t('allowSignup')}</Label>
-            <Switch
-              id="ghs"
-              checked={gh.allowSignup}
-              onCheckedChange={(v) =>
-                void patch({ providers: { github: { allowSignup: v } } })
-              }
-              disabled={saving}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="gh-client-id">{t('githubClientId')}</Label>
-            <Input
-              id="gh-client-id"
-              value={ghClientId}
-              onChange={(e) => setGhClientId(e.target.value)}
-              placeholder={t('githubClientIdPlaceholder')}
-              autoComplete="off"
-              disabled={saving}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="gh-client-secret">{t('githubClientSecret')}</Label>
-            <Input
-              id="gh-client-secret"
-              type="password"
-              value={ghClientSecret}
-              onChange={(e) => setGhClientSecret(e.target.value)}
-              placeholder={t('githubClientSecretPlaceholder')}
-              autoComplete="new-password"
-              disabled={saving}
-            />
-            <p className="text-xs text-muted-foreground">{t('githubClientSecretHint')}</p>
-          </div>
-          <Button type="button" variant="secondary" onClick={saveGithubOAuth} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            {t('saveGithubOAuth')}
-          </Button>
-        </CardContent>
-      </Card>
+        <CardContent>
+          <Tabs defaultValue="github" className="w-full">
+            <TabsList
+              className="flex h-auto min-h-9 w-full flex-wrap justify-start gap-1 p-1"
+              aria-label={t('oauthProvidersTitle')}
+            >
+              <TabsTrigger value="github" className="shrink-0 text-xs sm:text-sm">
+                {t('githubTitle')}
+              </TabsTrigger>
+              <TabsTrigger value="google" className="shrink-0 text-xs sm:text-sm">
+                {t('googleTitle')}
+              </TabsTrigger>
+              <TabsTrigger value="gitlab" className="shrink-0 text-xs sm:text-sm">
+                {t('gitlabTitle')}
+              </TabsTrigger>
+              <TabsTrigger value="passkey" className="shrink-0 text-xs sm:text-sm">
+                {t('passkeyTitle')}
+              </TabsTrigger>
+            </TabsList>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('passkeyTitle')}</CardTitle>
-          <CardDescription>{t('passkeyDesc')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="pke">{t('providerEnabled')}</Label>
-            <Switch
-              id="pke"
-              checked={pk.enabled}
-              onCheckedChange={(v) =>
-                void patch({ providers: { passkey: { enabled: v } } })
-              }
-              disabled={saving}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="pkb">{t('allowBind')}</Label>
-            <Switch
-              id="pkb"
-              checked={pk.allowBind}
-              onCheckedChange={(v) =>
-                void patch({ providers: { passkey: { allowBind: v } } })
-              }
-              disabled={saving}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="pks">{t('allowSignup')}</Label>
-            <Switch
-              id="pks"
-              checked={pk.allowSignup}
-              onCheckedChange={(v) =>
-                void patch({ providers: { passkey: { allowSignup: v } } })
-              }
-              disabled={saving}
-            />
-          </div>
+            <TabsContent value="github" className="mt-4 space-y-4 focus-visible:outline-none">
+              <p className="text-sm text-muted-foreground">{t('githubDesc')}</p>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="ghe">{t('providerEnabled')}</Label>
+                <Switch
+                  id="ghe"
+                  checked={gh.enabled}
+                  onCheckedChange={(v) =>
+                    void patch({ providers: { github: { enabled: v } } })
+                  }
+                  disabled={saving}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="ghb">{t('allowBind')}</Label>
+                <Switch
+                  id="ghb"
+                  checked={gh.allowBind}
+                  onCheckedChange={(v) =>
+                    void patch({ providers: { github: { allowBind: v } } })
+                  }
+                  disabled={saving}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="ghs">{t('allowSignup')}</Label>
+                <Switch
+                  id="ghs"
+                  checked={gh.allowSignup}
+                  onCheckedChange={(v) =>
+                    void patch({ providers: { github: { allowSignup: v } } })
+                  }
+                  disabled={saving}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gh-client-id">{t('githubClientId')}</Label>
+                <Input
+                  id="gh-client-id"
+                  value={ghClientId}
+                  onChange={(e) => setGhClientId(e.target.value)}
+                  placeholder={t('githubClientIdPlaceholder')}
+                  autoComplete="off"
+                  disabled={saving}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gh-client-secret">{t('githubClientSecret')}</Label>
+                <Input
+                  id="gh-client-secret"
+                  type="password"
+                  value={ghClientSecret}
+                  onChange={(e) => setGhClientSecret(e.target.value)}
+                  placeholder={t('githubClientSecretPlaceholder')}
+                  autoComplete="new-password"
+                  disabled={saving}
+                />
+                <p className="text-xs text-muted-foreground">{t('githubClientSecretHint')}</p>
+              </div>
+              <Button type="button" variant="secondary" onClick={saveGithubOAuth} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {t('saveGithubOAuth')}
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="google" className="mt-4 space-y-4 focus-visible:outline-none">
+              <p className="text-sm text-muted-foreground">{t('googleDesc')}</p>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="goe">{t('providerEnabled')}</Label>
+                <Switch
+                  id="goe"
+                  checked={goo.enabled}
+                  onCheckedChange={(v) =>
+                    void patch({ providers: { google: { enabled: v } } })
+                  }
+                  disabled={saving}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="gob">{t('allowBind')}</Label>
+                <Switch
+                  id="gob"
+                  checked={goo.allowBind}
+                  onCheckedChange={(v) =>
+                    void patch({ providers: { google: { allowBind: v } } })
+                  }
+                  disabled={saving}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="gos">{t('allowSignup')}</Label>
+                <Switch
+                  id="gos"
+                  checked={goo.allowSignup}
+                  onCheckedChange={(v) =>
+                    void patch({ providers: { google: { allowSignup: v } } })
+                  }
+                  disabled={saving}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="go-client-id">{t('googleClientId')}</Label>
+                <Input
+                  id="go-client-id"
+                  value={goClientId}
+                  onChange={(e) => setGoClientId(e.target.value)}
+                  placeholder={t('googleClientIdPlaceholder')}
+                  autoComplete="off"
+                  disabled={saving}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="go-client-secret">{t('googleClientSecret')}</Label>
+                <Input
+                  id="go-client-secret"
+                  type="password"
+                  value={goClientSecret}
+                  onChange={(e) => setGoClientSecret(e.target.value)}
+                  placeholder={t('googleClientSecretPlaceholder')}
+                  autoComplete="new-password"
+                  disabled={saving}
+                />
+                <p className="text-xs text-muted-foreground">{t('googleClientSecretHint')}</p>
+              </div>
+              <Button type="button" variant="secondary" onClick={saveGoogleOAuth} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {t('saveGoogleOAuth')}
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="gitlab" className="mt-4 space-y-4 focus-visible:outline-none">
+              <p className="text-sm text-muted-foreground">{t('gitlabDesc')}</p>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="gle">{t('providerEnabled')}</Label>
+                <Switch
+                  id="gle"
+                  checked={gl.enabled}
+                  onCheckedChange={(v) =>
+                    void patch({ providers: { gitlab: { enabled: v } } })
+                  }
+                  disabled={saving}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="glb">{t('allowBind')}</Label>
+                <Switch
+                  id="glb"
+                  checked={gl.allowBind}
+                  onCheckedChange={(v) =>
+                    void patch({ providers: { gitlab: { allowBind: v } } })
+                  }
+                  disabled={saving}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="gls">{t('allowSignup')}</Label>
+                <Switch
+                  id="gls"
+                  checked={gl.allowSignup}
+                  onCheckedChange={(v) =>
+                    void patch({ providers: { gitlab: { allowSignup: v } } })
+                  }
+                  disabled={saving}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gl-base-url">{t('gitlabBaseUrl')}</Label>
+                <Input
+                  id="gl-base-url"
+                  value={glBaseUrl}
+                  onChange={(e) => setGlBaseUrl(e.target.value)}
+                  placeholder={t('gitlabBaseUrlPlaceholder')}
+                  autoComplete="off"
+                  disabled={saving}
+                />
+                <p className="text-xs text-muted-foreground">{t('gitlabBaseUrlHint')}</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gl-client-id">{t('gitlabClientId')}</Label>
+                <Input
+                  id="gl-client-id"
+                  value={glClientId}
+                  onChange={(e) => setGlClientId(e.target.value)}
+                  placeholder={t('gitlabClientIdPlaceholder')}
+                  autoComplete="off"
+                  disabled={saving}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gl-client-secret">{t('gitlabClientSecret')}</Label>
+                <Input
+                  id="gl-client-secret"
+                  type="password"
+                  value={glClientSecret}
+                  onChange={(e) => setGlClientSecret(e.target.value)}
+                  placeholder={t('gitlabClientSecretPlaceholder')}
+                  autoComplete="new-password"
+                  disabled={saving}
+                />
+                <p className="text-xs text-muted-foreground">{t('gitlabClientSecretHint')}</p>
+              </div>
+              <Button type="button" variant="secondary" onClick={saveGitlabOAuth} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {t('saveGitlabOAuth')}
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="passkey" className="mt-4 space-y-4 focus-visible:outline-none">
+              <p className="text-sm text-muted-foreground">{t('passkeyDesc')}</p>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="pke">{t('providerEnabled')}</Label>
+                <Switch
+                  id="pke"
+                  checked={pk.enabled}
+                  onCheckedChange={(v) =>
+                    void patch({ providers: { passkey: { enabled: v } } })
+                  }
+                  disabled={saving}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="pkb">{t('allowBind')}</Label>
+                <Switch
+                  id="pkb"
+                  checked={pk.allowBind}
+                  onCheckedChange={(v) =>
+                    void patch({ providers: { passkey: { allowBind: v } } })
+                  }
+                  disabled={saving}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="pks">{t('allowSignup')}</Label>
+                <Switch
+                  id="pks"
+                  checked={pk.allowSignup}
+                  onCheckedChange={(v) =>
+                    void patch({ providers: { passkey: { allowSignup: v } } })
+                  }
+                  disabled={saving}
+                />
+              </div>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 

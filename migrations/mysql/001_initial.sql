@@ -25,7 +25,6 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(255) NOT NULL,
   image TEXT,
   password_hash TEXT,
-  github_id VARCHAR(255) UNIQUE,
   is_active TINYINT DEFAULT 1,
   email_verified VARCHAR(64),
   login_token_hash VARCHAR(128) UNIQUE,
@@ -528,15 +527,6 @@ SELECT 'default',
   CURRENT_TIMESTAMP(3)
 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM platform_settings WHERE id = 'default');
-
-INSERT INTO oauth_accounts (id, user_id, provider, provider_account_id, email, metadata, created_at)
-SELECT CONCAT('mig_github_', u.id), u.id, 'github', u.github_id, u.email, NULL, COALESCE(u.created_at, CURRENT_TIMESTAMP(3))
-FROM users u
-WHERE u.github_id IS NOT NULL AND TRIM(u.github_id) != ''
-  AND NOT EXISTS (
-    SELECT 1 FROM oauth_accounts o
-    WHERE o.provider = 'github' AND o.provider_account_id = u.github_id
-  );
 
 INSERT IGNORE INTO users (id, email, name, is_active, created_at, updated_at)
 VALUES ('__preset__', NULL, '预设资源库', 0, '2025-03-26 00:00:00.000', '2025-03-26 00:00:00.000');

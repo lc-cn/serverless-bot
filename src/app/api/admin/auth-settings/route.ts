@@ -13,6 +13,12 @@ function redactSecrets(s: AuthSettings): AuthSettings {
   if (o.providers.github.clientSecret) {
     o.providers.github.clientSecret = '********';
   }
+  if (o.providers.google.clientSecret) {
+    o.providers.google.clientSecret = '********';
+  }
+  if (o.providers.gitlab.clientSecret) {
+    o.providers.gitlab.clientSecret = '********';
+  }
   if (o.email.smtp.password) {
     o.email.smtp.password = '********';
   }
@@ -37,6 +43,25 @@ const patchSchema = z
             allowSignup: z.boolean().optional(),
             clientId: z.string().nullable().optional(),
             clientSecret: z.string().nullable().optional(),
+          })
+          .optional(),
+        google: z
+          .object({
+            enabled: z.boolean().optional(),
+            allowBind: z.boolean().optional(),
+            allowSignup: z.boolean().optional(),
+            clientId: z.string().nullable().optional(),
+            clientSecret: z.string().nullable().optional(),
+          })
+          .optional(),
+        gitlab: z
+          .object({
+            enabled: z.boolean().optional(),
+            allowBind: z.boolean().optional(),
+            allowSignup: z.boolean().optional(),
+            clientId: z.string().nullable().optional(),
+            clientSecret: z.string().nullable().optional(),
+            baseUrl: z.string().nullable().optional(),
           })
           .optional(),
         passkey: z
@@ -97,7 +122,25 @@ function buildPatchedSettings(current: AuthSettings, patch: NonNullable<z.infer<
     if (s === '' || s === null) clientSecret = undefined;
   }
 
+  const goPatch = patch.providers?.google;
+  let googleClientSecret = current.providers.google.clientSecret;
+  if (goPatch && 'clientSecret' in goPatch) {
+    const s = goPatch.clientSecret;
+    if (s != null && s !== '' && s !== '********') googleClientSecret = s;
+    if (s === '' || s === null) googleClientSecret = undefined;
+  }
+
+  const glPatch = patch.providers?.gitlab;
+  let gitlabClientSecret = current.providers.gitlab.clientSecret;
+  if (glPatch && 'clientSecret' in glPatch) {
+    const s = glPatch.clientSecret;
+    if (s != null && s !== '' && s !== '********') gitlabClientSecret = s;
+    if (s === '' || s === null) gitlabClientSecret = undefined;
+  }
+
   const gh = { ...current.providers.github, ...patch.providers?.github };
+  const go = { ...current.providers.google, ...patch.providers?.google };
+  const gl = { ...current.providers.gitlab, ...patch.providers?.gitlab };
   const pk = { ...current.providers.passkey, ...patch.providers?.passkey };
 
   const em = patch.email;
@@ -136,6 +179,17 @@ function buildPatchedSettings(current: AuthSettings, patch: NonNullable<z.infer<
         ...gh,
         clientId: gh.clientId ?? undefined,
         clientSecret,
+      },
+      google: {
+        ...go,
+        clientId: go.clientId ?? undefined,
+        clientSecret: googleClientSecret,
+      },
+      gitlab: {
+        ...gl,
+        clientId: gl.clientId ?? undefined,
+        clientSecret: gitlabClientSecret,
+        baseUrl: gl.baseUrl?.trim() ? gl.baseUrl.trim().replace(/\/+$/, '') : undefined,
       },
       passkey: {
         ...pk,

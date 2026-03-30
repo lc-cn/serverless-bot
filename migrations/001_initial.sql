@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   image TEXT,
   password_hash TEXT,
-  github_id TEXT UNIQUE,
   is_active INTEGER DEFAULT 1,
   email_verified TEXT,
   created_at TEXT NOT NULL,
@@ -523,15 +522,6 @@ INSERT OR IGNORE INTO platform_settings (id, settings_json, updated_at) VALUES (
   '{"version":1,"flowProcessBudgetMs":0,"flowStopAfterFirstMatch":false,"webhookMaxDurationSec":60,"webhookFlowAsync":false,"webhookFlowDedupeOnSuccessOnly":false,"webhookFlowQueueMax":5000,"flowWorkerDlqMax":2000,"flowWorkerMaxAttempts":3,"flowWorkerRetryDelayMs":0,"webhookFlowDedupeTtlSec":86400,"flowWorkerBatch":8,"callApiDefaultTimeoutMs":60000,"callApiMaxTimeoutMs":null,"llmAgentMaxToolRounds":8,"chatSqlRequired":false,"sessionUserCheckIntervalMs":120000,"dashboardEnvLoginToken":null}',
   datetime('now')
 );
-
-INSERT INTO oauth_accounts (id, user_id, provider, provider_account_id, email, metadata, created_at)
-SELECT 'mig_github_' || id, id, 'github', github_id, email, NULL, COALESCE(created_at, datetime('now'))
-FROM users
-WHERE github_id IS NOT NULL AND trim(github_id) != ''
-  AND NOT EXISTS (
-    SELECT 1 FROM oauth_accounts o
-    WHERE o.provider = 'github' AND o.provider_account_id = users.github_id
-  );
 
 INSERT OR IGNORE INTO users (id, email, name, is_active, created_at, updated_at)
 VALUES ('__preset__', NULL, '预设资源库', 0, '2025-03-26T00:00:00.000Z', '2025-03-26T00:00:00.000Z');
