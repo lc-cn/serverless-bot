@@ -18,6 +18,11 @@ export type PublicAuthConfig = {
   gitlab: { enabled: boolean; allowBind: boolean; allowSignup: boolean };
   passkey: { enabled: boolean; allowBind: boolean; allowSignup: boolean };
   databaseConfigured: boolean;
+  sponsor?: {
+    enabled: boolean;
+    primaryUrl: string | null;
+    links: { url: string; label?: string }[];
+  };
 };
 
 const FALLBACK_CFG: PublicAuthConfig = {

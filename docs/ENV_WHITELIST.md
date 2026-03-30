@@ -56,6 +56,13 @@
 |------|------|
 | `HTTP_PROXY` / `HTTPS_PROXY` | 适配器出站代理（如 Telegram） |
 
+### 前端公示（可选）
+
+| 变量 | 说明 |
+|------|------|
+| `NEXT_PUBLIC_SPONSOR_URL` | 赞助主链接（GitHub Sponsors、Ko-fi 等）；未设则不展示赞助入口 |
+| `NEXT_PUBLIC_SPONSOR_LINKS_JSON` | 可选；JSON 数组 `{ "label", "url" }[]`，与主链合并展示 |
+
 ### 已迁移到数据库（勿再依赖 ENV 作为唯一来源）
 
 以下项由 **`platform_settings`**（控制台 **设置 → 平台参数**）或 **`auth_settings`** 管理；新部署以控制台为准（**GitHub OAuth Client ID/Secret 仅保存在 `auth_settings`，不再读取 `GITHUB_CLIENT_*` 环境变量**）：

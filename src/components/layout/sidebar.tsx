@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/i18n/navigation';
 import { cn } from '@/lib/shared/utils';
+import { SponsorSidebarFooter } from '@/components/sponsor/sponsor-sidebar-footer';
 import {
   Settings,
   Workflow,
@@ -74,10 +75,13 @@ export function SidebarNav({
   collapsed,
   onLinkClick,
   className,
+  sponsorPrimaryUrl,
 }: {
   collapsed: boolean;
   onLinkClick?: () => void;
   className?: string;
+  /** 由 dashboard layout 服务端注入；未配置则不显示 */
+  sponsorPrimaryUrl?: string | null;
 }) {
   const pathname = usePathname();
   const t = useTranslations('Sidebar');
@@ -236,6 +240,7 @@ export function SidebarNav({
           </div>
         ))}
       </nav>
+      <SponsorSidebarFooter collapsed={collapsed} primaryUrl={sponsorPrimaryUrl ?? null} />
     </div>
   );
 }

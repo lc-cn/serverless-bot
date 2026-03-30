@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
-import { LogOut, Menu, PanelLeft, PanelLeftClose, User } from 'lucide-react';
+import { HeartHandshake, LogOut, Menu, PanelLeft, PanelLeftClose, User } from 'lucide-react';
 
 export type DashboardShellUser = {
   name: string;
@@ -26,10 +26,17 @@ export type DashboardShellUser = {
   image?: string | null;
 };
 
-function UserMenu({ user }: { user: DashboardShellUser }) {
+function UserMenu({
+  user,
+  sponsorPrimaryUrl,
+}: {
+  user: DashboardShellUser;
+  sponsorPrimaryUrl: string | null;
+}) {
   const locale = useLocale();
   const tc = useTranslations('Common');
   const t = useTranslations('DashboardLayout');
+  const ts = useTranslations('Sponsor');
 
   const initial =
     user.name
@@ -80,6 +87,20 @@ function UserMenu({ user }: { user: DashboardShellUser }) {
             {t('goProfile')}
           </Link>
         </DropdownMenuItem>
+        {sponsorPrimaryUrl ? (
+          <DropdownMenuItem asChild>
+            <a
+              href={sponsorPrimaryUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="cursor-pointer"
+              aria-label={ts('openInNewTabAria')}
+            >
+              <HeartHandshake className="size-4" />
+              {ts('supportProject')}
+            </a>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
@@ -98,9 +119,11 @@ const SIDEBAR_COLLAPSED_KEY = 'dashboard-sidebar-collapsed';
 export function DashboardAppShell({
   children,
   user,
+  sponsorPrimaryUrl = null,
 }: {
   children: React.ReactNode;
   user: DashboardShellUser;
+  sponsorPrimaryUrl?: string | null;
 }) {
   const t = useTranslations('DashboardLayout');
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -137,7 +160,7 @@ export function DashboardAppShell({
         )}
         aria-label={t('sidebarLabel')}
       >
-        <SidebarNav collapsed={collapsed} />
+        <SidebarNav collapsed={collapsed} sponsorPrimaryUrl={sponsorPrimaryUrl} />
       </aside>
 
       <main className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -171,7 +194,7 @@ export function DashboardAppShell({
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
             <ThemeSwitcher />
             <LanguageSwitcher />
-            <UserMenu user={user} />
+            <UserMenu user={user} sponsorPrimaryUrl={sponsorPrimaryUrl} />
           </div>
         </header>
 
@@ -190,6 +213,7 @@ export function DashboardAppShell({
             collapsed={false}
             onLinkClick={() => setMobileOpen(false)}
             className="border-0 shadow-none"
+            sponsorPrimaryUrl={sponsorPrimaryUrl}
           />
         </SheetContent>
       </Sheet>

@@ -36,6 +36,14 @@
     "localeZh": "中文",
     "localeEn": "English"
   },
+  "Sponsor": {
+    "supportProject": "赞助项目",
+    "linkFallback": "赞助",
+    "footerNote": "若本项目对你有帮助，欢迎赞助支持持续维护。",
+    "openInNewTabAria": "在新标签页打开赞助页面",
+    "sidebarLink": "赞助",
+    "hubThanks": "感谢使用。若觉得有用，欢迎赞助支持开发。"
+  },
   "Ui": {
     "loading": "加载中…",
     "saving": "保存中…",

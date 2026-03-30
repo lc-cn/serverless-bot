@@ -36,6 +36,14 @@
     "localeZh": "中文",
     "localeEn": "English"
   },
+  "Sponsor": {
+    "supportProject": "Sponsor the project",
+    "linkFallback": "Sponsor",
+    "footerNote": "If this project helps you, consider sponsoring to keep it maintained.",
+    "openInNewTabAria": "Open sponsor page in a new tab",
+    "sidebarLink": "Sponsor",
+    "hubThanks": "Thanks for using Serverless Bot. If you find it useful, sponsorship helps ongoing development."
+  },
   "Ui": {
     "loading": "Loading…",
     "saving": "Saving…",

@@ -13,6 +13,11 @@ export function isBenignMigrationError(err: unknown): boolean {
   ) {
     return true;
   }
-  if (m.includes("can't drop") && (m.includes('github_id') || m.includes('gitlab_id'))) return true;
+  if (
+    (m.includes("can't drop") || m.includes('cannot drop')) &&
+    (m.includes('github_id') || m.includes('gitlab_id'))
+  ) {
+    return true;
+  }
   return false;
 }

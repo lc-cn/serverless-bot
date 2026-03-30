@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/navigation';
+import { getSponsorPublicPayload } from '@/lib/sponsor-config';
 import { Button } from '@/components/ui/button';
 import { LanguageSwitcher } from '@/components/layout/language-switcher';
 import { ThemeSwitcher } from '@/components/layout/theme-switcher';
@@ -19,6 +20,7 @@ import {
   Workflow,
   Zap,
   CheckCircle2,
+  HeartHandshake,
 } from 'lucide-react';
 
 function FeatureCard({
@@ -119,6 +121,8 @@ export async function HomeLanding({
   registrationEnabled: boolean;
 }) {
   const t = await getTranslations('HomePage');
+  const ts = await getTranslations('Sponsor');
+  const sponsor = getSponsorPublicPayload();
 
   return (
     <main className="relative min-h-screen bg-background">
@@ -377,6 +381,26 @@ ${t('webhookExamplePosts')}`}
             {t('ctaDocs')}
             <ArrowRight className="size-3" aria-hidden />
           </Link>
+          {sponsor.enabled && sponsor.links.length > 0 ? (
+            <div className="mx-auto mt-6 max-w-md border-t border-border/40 pt-6">
+              <p className="text-xs text-muted-foreground sm:text-sm">{ts('footerNote')}</p>
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                {sponsor.links.map((item, i) => (
+                  <a
+                    key={`${item.url}-${i}`}
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline sm:text-sm"
+                    aria-label={ts('openInNewTabAria')}
+                  >
+                    <HeartHandshake className="size-3.5 shrink-0" aria-hidden />
+                    {item.label ?? ts('supportProject')}
+                  </a>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </footer>
       </div>
     </main>

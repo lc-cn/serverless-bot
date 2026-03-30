@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth';
 import { localizedRedirect } from '@/i18n/server-redirect';
 import type { ExtendedSession } from '@/types/auth';
+import { getSponsorPublicPayload } from '@/lib/sponsor-config';
 import { OnboardingHub } from './onboarding-hub';
 
 export default async function OnboardingPage() {
@@ -9,5 +10,6 @@ export default async function OnboardingPage() {
     await localizedRedirect('/sign-in');
   }
 
-  return <OnboardingHub />;
+  const sponsor = getSponsorPublicPayload();
+  return <OnboardingHub sponsor={sponsor} />;
 }

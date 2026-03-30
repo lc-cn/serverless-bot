@@ -17,6 +17,16 @@
 - [ ] **`CRON_TICK_SECRET`**：若使用控制台「定时任务」，生产必填；由 **Cron / QStash** 定期 `POST /api/internal/cron/tick`，请求头 **`x-cron-tick-secret`** 与之相同。未配置时生产环境该路由会拒绝执行（开发环境可不配 secret）。  
 - [ ] **`/api/dev/*`**：生产已由路由挡板禁止危险接口；开发环境若设 **`DEV_DANGEROUS_API_SECRET`**，访问 `/api/dev/init-rbac` 等须带头 **`x-dev-dangerous-secret`**。
 
+## 赞助链接（可选）
+
+应用可免费使用；若希望在营销首页、控制台侧栏与用户菜单、新手引导枢纽底部展示「赞助」出站链接：
+
+- **`NEXT_PUBLIC_SPONSOR_URL`**：主链接（例如 GitHub Sponsors、Ko-fi、爱发电）。侧栏与头像菜单使用该 URL 作为主入口。  
+- **`NEXT_PUBLIC_SPONSOR_LINKS_JSON`**（可选）：JSON 数组，每项为 `{ "label": "显示名", "url": "https://..." }`；与主链接合并、去重后用于首页页脚与引导页多链接展示。  
+- 未配置任何有效 **`http`/`https`** URL 时，全站**不展示**赞助入口（无「敬请期待」占位）。  
+- **`GET /api/auth/public-config`** 的响应体中含 **`sponsor`**：`{ enabled, primaryUrl, links }`，无敏感信息，可供其他客户端扩展。  
+- **隐私**：点击后用户即离开本站进入第三方页面，需遵守对应平台的条款与隐私政策。
+
 ## 控制台多语言（next-intl）
 
 - **路由**：页面路径为 **`/{locale}/...`**（当前 **`zh-CN`**、**`en`**，`localePrefix: always`）；访问 **`/`** 由 **`src/proxy.ts`** 中的 next-intl 中间件与 Cookie / `Accept-Language` 协商后重定向。  

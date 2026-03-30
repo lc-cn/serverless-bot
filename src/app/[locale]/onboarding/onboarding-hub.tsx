@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { countSectionPending } from '@/lib/onboarding/onboarding-sections';
 import type { OnboardingSectionId } from '@/lib/onboarding/onboarding-registry';
 import type { OnboardingSectionsState } from '@/lib/onboarding/onboarding-sections';
+import type { SponsorPublicPayload } from '@/lib/sponsor-config';
+import { HeartHandshake } from 'lucide-react';
 
 type RegistryRow = {
   id: OnboardingSectionId;
@@ -18,10 +20,11 @@ type RegistryRow = {
   progress: { status: string; at?: number };
 };
 
-export function OnboardingHub() {
+export function OnboardingHub({ sponsor }: { sponsor: SponsorPublicPayload }) {
   const router = useRouter();
   const th = useTranslations('Onboarding.hub');
   const ts = useTranslations('Onboarding.sections');
+  const tSponsor = useTranslations('Sponsor');
   const [registry, setRegistry] = useState<RegistryRow[]>([]);
   const [sections, setSections] = useState<OnboardingSectionsState | null>(null);
   const [hubCompletedAt, setHubCompletedAt] = useState<number | null>(null);
@@ -111,6 +114,27 @@ export function OnboardingHub() {
           );
         })}
       </div>
+
+      {sponsor.enabled && sponsor.primaryUrl ? (
+        <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 text-center text-xs text-muted-foreground sm:text-sm">
+          <p className="mb-2">{tSponsor('hubThanks')}</p>
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+            {sponsor.links.map((item, i) => (
+              <a
+                key={`${item.url}-${i}`}
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                aria-label={tSponsor('openInNewTabAria')}
+              >
+                <HeartHandshake className="size-3.5 shrink-0" aria-hidden />
+                {item.label ?? tSponsor('linkFallback')}
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

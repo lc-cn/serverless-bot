@@ -4,6 +4,7 @@ import { storage } from '@/lib/persistence';
 import { shouldRedirectToOnboarding } from '@/lib/onboarding/onboarding-gate';
 import type { ExtendedSession } from '@/types/auth';
 import { DashboardAppShell } from '@/components/layout/dashboard-app-shell';
+import { getSponsorPublicPayload } from '@/lib/sponsor-config';
 
 export default async function DashboardLayout({
   children,
@@ -22,6 +23,8 @@ export default async function DashboardLayout({
   }
 
   const u = session!.user!;
+  const sponsor = getSponsorPublicPayload();
+  const sponsorPrimaryUrl = sponsor.enabled && sponsor.primaryUrl ? sponsor.primaryUrl : null;
 
   return (
     <DashboardAppShell
@@ -30,6 +33,7 @@ export default async function DashboardLayout({
         email: u.email ?? undefined,
         image: u.image ?? null,
       }}
+      sponsorPrimaryUrl={sponsorPrimaryUrl}
     >
       {children}
     </DashboardAppShell>
