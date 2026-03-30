@@ -11,7 +11,6 @@ import {
   Clock,
   FlaskConical,
   LayoutDashboard,
-  LogIn,
   MessageSquare,
   Settings,
   Shield,
@@ -122,8 +121,8 @@ export async function HomeLanding({
   const t = await getTranslations('HomePage');
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-background">
-      <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
+    <main className="relative min-h-screen bg-background">
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden>
         <div className="absolute left-1/2 top-0 h-[min(85vh,620px)] w-[min(110vw,900px)] -translate-x-1/2 rounded-[50%] bg-primary/[0.09] blur-3xl" />
         <div className="absolute bottom-[10%] left-[-10%] h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
         <div className="absolute right-[-5%] top-[28%] h-56 w-56 rounded-full bg-secondary blur-3xl" />
@@ -131,24 +130,26 @@ export async function HomeLanding({
       </div>
 
       <header className="home-rise relative z-20 border-b border-border/50 bg-background/75 backdrop-blur-md supports-[backdrop-filter]:bg-background/55">
-        <div className="container mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:h-16">
-          <span className="truncate text-sm font-semibold tracking-tight sm:text-base">{t('title')}</span>
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <div className="container mx-auto flex min-h-14 max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2 sm:h-16 sm:flex-nowrap sm:py-0">
+          <span className="min-w-0 max-w-[min(100%,calc(100vw-11rem))] truncate text-sm font-semibold tracking-tight sm:max-w-none sm:text-base">
+            {t('title')}
+          </span>
+          <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2 md:gap-3">
             <ThemeSwitcher />
             <LanguageSwitcher />
             {!signedIn ? (
               <>
-                <Button asChild variant="ghost" size="sm" className="hidden md:inline-flex">
+                <Button asChild variant="ghost" size="sm" className="h-8 shrink-0 px-2 text-xs sm:h-9 sm:px-3 sm:text-sm">
                   <Link href="/sign-in">{t('ctaSignIn')}</Link>
                 </Button>
                 {registrationEnabled && (
-                  <Button asChild size="sm" className="shadow-surface-sm">
+                  <Button asChild size="sm" className="h-8 shrink-0 px-2 text-xs shadow-surface-sm sm:h-9 sm:px-3 sm:text-sm">
                     <Link href="/sign-up">{t('ctaSignUp')}</Link>
                   </Button>
                 )}
               </>
             ) : (
-              <Button asChild size="sm" variant="secondary">
+              <Button asChild size="sm" variant="secondary" className="h-8 shrink-0 sm:h-9">
                 <Link href="/dashboard">{t('ctaDashboard')}</Link>
               </Button>
             )}

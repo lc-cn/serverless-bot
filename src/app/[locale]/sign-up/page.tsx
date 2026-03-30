@@ -23,7 +23,7 @@ export default async function SignUpPage({
 
   return (
     <div className="relative flex min-h-dvh items-center justify-center bg-background p-4">
-      <div className="absolute right-4 top-4 flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+      <div className="absolute right-3 top-3 z-10 flex flex-nowrap items-center gap-1 sm:right-4 sm:top-4 sm:gap-2">
         <ThemeSwitcher />
         <LanguageSwitcher />
       </div>

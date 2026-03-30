@@ -259,15 +259,15 @@ export function SignInForm() {
       {cfg.registrationEnabled || cfg.github.enabled ? (
         <CardFooter className="flex flex-col gap-3 border-t border-border/50 px-5 pb-6 pt-4 sm:px-6">
           {cfg.registrationEnabled ? (
-            <p className="text-center text-xs text-muted-foreground sm:text-sm">
-              {tForm('noAccountPrefix')}
+            <div className="flex flex-col items-center gap-1 text-center text-xs text-muted-foreground sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-1 sm:text-sm">
+              <span className="shrink-0">{tForm('noAccountPrefix')}</span>
               <Link
                 href={authHref('/sign-up', callbackUrl)}
-                className="font-medium text-primary underline-offset-4 hover:underline"
+                className="shrink-0 font-medium text-primary underline-offset-4 hover:underline"
               >
                 {tForm('noAccountLink')}
               </Link>
-            </p>
+            </div>
           ) : null}
           {cfg.github.enabled ? (
             <p className="text-center text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
@@ -427,15 +427,15 @@ export function SignUpForm() {
         </form>
       </CardContent>
       <CardFooter className="flex flex-col gap-2 border-t border-border/50 px-5 pb-6 pt-4 sm:px-6">
-        <p className="text-center text-xs text-muted-foreground sm:text-sm">
-          {tForm('haveAccountPrefix')}
+        <div className="flex flex-col items-center gap-1 text-center text-xs text-muted-foreground sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-1 sm:text-sm">
+          <span className="shrink-0">{tForm('haveAccountPrefix')}</span>
           <Link
             href={authHref('/sign-in', callbackUrl)}
-            className="font-medium text-primary underline-offset-4 hover:underline"
+            className="shrink-0 font-medium text-primary underline-offset-4 hover:underline"
           >
             {tForm('haveAccountLink')}
           </Link>
-        </p>
+        </div>
       </CardFooter>
     </Card>
   );
