@@ -16,6 +16,9 @@ import { FlowTemplateVariablesHint } from '@/components/flow-template-variables-
 import { stepTypeShowsFlowTemplateHint } from '@/lib/steps/step-template-variable-hint';
 import type { StepType } from '@/types';
 
+/** Radix Select 禁止 SelectItem 使用 value=""；可选字段用此哨兵表示未选，在 onValueChange 中写回 '' */
+const SELECT_EMPTY_VALUE = '__step_cfg_unset__';
+
 interface StepConfigFormProps {
   schema: Record<string, FieldSchema>;
   config: Record<string, any>;
@@ -118,27 +121,39 @@ export function StepConfigForm({ schema, config, onChange, stepType }: StepConfi
           </div>
         );
 
-      case 'select':
+      case 'select': {
+        const strVal = typeof value === 'string' ? value : '';
+        const selectValue =
+          strVal !== ''
+            ? strVal
+            : !field.required
+              ? SELECT_EMPTY_VALUE
+              : undefined;
         return (
           <Select
-            value={typeof value === 'string' ? value : ''}
-            onValueChange={(v) => handleFieldChange(fieldName, v)}
+            value={selectValue}
+            onValueChange={(v) =>
+              handleFieldChange(fieldName, v === SELECT_EMPTY_VALUE ? '' : v)
+            }
           >
             <SelectTrigger aria-required={field.required}>
               <SelectValue placeholder={ui('pleaseSelect')} />
             </SelectTrigger>
             <SelectContent>
               {!field.required && (
-                <SelectItem value="">{ui('pleaseSelect')}</SelectItem>
+                <SelectItem value={SELECT_EMPTY_VALUE}>{ui('pleaseSelect')}</SelectItem>
               )}
-              {field.options?.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {trOpt(fieldName, option.value, option.label)}
-                </SelectItem>
-              ))}
+              {field.options
+                ?.filter((option) => option.value !== '')
+                .map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {trOpt(fieldName, option.value, option.label)}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         );
+      }
 
       case 'json':
         return (

@@ -5,7 +5,7 @@ import { cn } from "@/lib/shared/utils"
 const Textarea = React.forwardRef<
   HTMLTextAreaElement,
   React.ComponentProps<"textarea">
->(({ className, ...props }, ref) => {
+>(({ className, value, ...props }, ref) => {
   return (
     <textarea
       className={cn(
@@ -14,6 +14,9 @@ const Textarea = React.forwardRef<
       )}
       ref={ref}
       {...props}
+      {...(value !== undefined
+        ? { value: value === null ? "" : value }
+        : {})}
     />
   )
 })
