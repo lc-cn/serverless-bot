@@ -163,6 +163,16 @@ function rowOwnerId(row: { owner_id?: unknown }): string | null {
   return String(row.owner_id);
 }
 
+/** 主库 `created_at`/`updated_at` 多为 ISO 8601 文本；规范为毫秒时间戳以通过 Zod 与类型定义 */
+function rowTimestampMs(v: unknown): number {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string' && v.trim()) {
+    const ms = Date.parse(v);
+    if (!Number.isNaN(ms)) return ms;
+  }
+  return Date.now();
+}
+
 async function assembleFlow(row: Record<string, unknown>): Promise<Flow> {
   const id = String(row.id);
   const triggers = await db.query<any>('SELECT trigger_id FROM flow_triggers WHERE flow_id = ?', [id]);
@@ -184,8 +194,8 @@ async function assembleFlow(row: Record<string, unknown>): Promise<Flow> {
     jobIds: jobs.map((j) => j.job_id),
     haltLowerPriorityAfterMatch,
     ownerId: rowOwnerId(row),
-    createdAt: row.created_at as number,
-    updatedAt: row.updated_at as number,
+    createdAt: rowTimestampMs(row.created_at),
+    updatedAt: rowTimestampMs(row.updated_at),
   };
 }
 
@@ -331,8 +341,8 @@ function mapTriggerRow(row: any): Trigger {
     },
     ...(scope ? { scope } : {}),
     ownerId: rowOwnerId(row),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    createdAt: rowTimestampMs(row.created_at),
+    updatedAt: rowTimestampMs(row.updated_at),
   };
 }
 
@@ -421,8 +431,8 @@ async function assembleJob(row: Record<string, unknown>): Promise<Job> {
       order: s.step_order,
     })),
     ownerId: rowOwnerId(row),
-    createdAt: row.created_at as number,
-    updatedAt: row.updated_at as number,
+    createdAt: rowTimestampMs(row.created_at),
+    updatedAt: rowTimestampMs(row.updated_at),
   };
 }
 
