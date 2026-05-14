@@ -276,6 +276,26 @@ export async function saveFlow(flow: Flow): Promise<void> {
   }
 }
 
+/**
+ * 校验即将写入 flow_triggers / flow_jobs 的 id 在主表中存在（否则 SQLite/MySQL 外键会失败）。
+ */
+export async function validateFlowRelationIds(
+  triggerIds: string[],
+  jobIds: string[],
+): Promise<{ missingTriggerIds: string[]; missingJobIds: string[] }> {
+  const missingTriggerIds: string[] = [];
+  for (const id of triggerIds) {
+    const row = await db.queryOne<{ id: string }>('SELECT id FROM triggers WHERE id = ?', [id]);
+    if (!row) missingTriggerIds.push(id);
+  }
+  const missingJobIds: string[] = [];
+  for (const id of jobIds) {
+    const row = await db.queryOne<{ id: string }>('SELECT id FROM jobs WHERE id = ?', [id]);
+    if (!row) missingJobIds.push(id);
+  }
+  return { missingTriggerIds, missingJobIds };
+}
+
 export async function deleteFlowForUser(id: string, userId: string): Promise<void> {
   await db.execute('DELETE FROM flows WHERE id = ? AND owner_id = ?', [id, userId]);
 }

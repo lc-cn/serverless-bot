@@ -26,6 +26,7 @@ export const storage = {
   listFlowsForUser: data.listFlowsForUser,
   getFlowForUser: data.getFlowForUser,
   saveFlow: data.saveFlow,
+  validateFlowRelationIds: data.validateFlowRelationIds,
   deleteFlowForUser: data.deleteFlowForUser,
 
   // Trigger 配置

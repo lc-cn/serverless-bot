@@ -88,6 +88,17 @@ export async function POST(request: NextRequest) {
     }
 
     const flow = { ...parseResult.data, ownerId: session!.user.id };
+    const rel = await storage.validateFlowRelationIds(flow.triggerIds, flow.jobIds);
+    if (rel.missingTriggerIds.length > 0 || rel.missingJobIds.length > 0) {
+      return NextResponse.json(
+        {
+          error: '部分触发器或步骤流水线在数据库中不存在，无法保存。',
+          missingTriggerIds: rel.missingTriggerIds,
+          missingJobIds: rel.missingJobIds,
+        },
+        { status: 400 },
+      );
+    }
     await storage.saveFlow(flow);
 
     void writeAuditLog({

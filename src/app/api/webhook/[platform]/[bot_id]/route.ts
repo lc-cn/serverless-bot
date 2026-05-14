@@ -14,6 +14,7 @@ import {
 } from '@/lib/webhook/webhook-flow-queue';
 import { isWebhookFlowAsync, isWebhookFlowDedupeOnSuccessOnly } from '@/lib/webhook/webhook-env';
 import { wechatMpPassiveReplyStorage } from '@/lib/runtime/wechat-mp-passive-context';
+import { kvRestNetworkFailureHint } from '@/lib/kv/kv-error-hint';
 
 // 确保适配器被注册
 import '@/adapters';
@@ -209,7 +210,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     try {
       await cacheWebhookChatDirectory({ platform, botId, event });
     } catch (cacheErr) {
-      console.warn('[Webhook] cache contacts/groups failed', cacheErr);
+      console.warn(
+        `[Webhook] cache contacts/groups failed${kvRestNetworkFailureHint(cacheErr)}`,
+        cacheErr,
+      );
     }
 
     // 10. 处理事件（同步）或异步入队（平台设置 webhookFlowAsync）
